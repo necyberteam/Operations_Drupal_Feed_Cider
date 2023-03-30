@@ -10,6 +10,8 @@ dependencies:
     - link
     - node
     - user
+_core:
+  default_config_hash: MWnQ7NbqhGT4KAmUQw7Te5X-sxGntXtL-_4eij2n5YQ
 id: access_active_resources
 label: 'ACCESS Active Resources'
 module: views
@@ -363,7 +365,7 @@ display:
           plugin_id: text
           empty: true
           content:
-            value: '<p><b>Researcher documentation for these RP resources is available <a href=“https://access-ci.atlassian.net/wiki/spaces/ACCESSdocumentation/pages/108333491/Resource+Providers”>HERE</a></b></p>'
+            value: '<p>Researcher documentation for these RP resources is available <a href="https://xsedetoaccess.ccs.uky.edu/confluence/redirect/Resource+Providers.html">HERE</a></p>'
             format: basic_html
           tokenize: false
       footer: {  }
