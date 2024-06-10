@@ -24,9 +24,10 @@ function operations_cider_entity_presave(EntityInterface $entity) {
   if ($entity->getEntityTypeId() == 'node') {
     $type = $entity->bundle();
     if ($type == 'access_active_resources_from_cid') {
+      // Only run on new entities.
       if ($entity->id() == null) {
-        // Get field field_domain_access from the entity.
         $field_domain_access = $entity->get('field_domain_access')->getValue();
+        // Set default domain when null is passed.
         if (empty($field_domain_access)) {
           $entity->set('field_domain_access', 'amp_cyberinfrastructure_org');
         }
