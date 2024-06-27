@@ -21,11 +21,11 @@ function operations_cider_node_insert(\Drupal\Core\Entity\EntityInterface $entit
  * Implements hook_entity_create().
  */
 function operations_cider_entity_presave(EntityInterface $entity) {
-  if ($entity->getEntityTypeId() == 'node') {
+  $moduleHandler = \Drupal::service('module_handler');
+  if ($entity->getEntityTypeId() == 'node' && $moduleHandler->moduleExists('domain_access') ) {
     $type = $entity->bundle();
     if ($type == 'access_active_resources_from_cid') {
       if ($entity->id() == null) {
-        // Get field field_domain_access from the entity.
         $field_domain_access = $entity->get('field_domain_access')->getValue();
         if (empty($field_domain_access)) {
           $entity->set('field_domain_access', 'amp_cyberinfrastructure_org');
