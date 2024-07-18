@@ -1,8 +1,10 @@
 <?php
 
+use Drupal\Core\Entity\EntityInterface;
+
 /**
  * Implements hook_node_insert().
- * 
+ *
  * Send CiDeR resources to all affiliated sites if using the domain_access module.
  */
 function operations_cider_node_insert(\Drupal\Core\Entity\EntityInterface $entity) {
@@ -11,6 +13,26 @@ function operations_cider_node_insert(\Drupal\Core\Entity\EntityInterface $entit
     if ($type == 'access_active_resources_from_cid') {
       $entity->field_domain_all_affiliates = TRUE;
       $entity->save();
+    }
+  }
+}
+
+/**
+ * Implements hook_entity_create().
+ */
+function operations_cider_entity_presave(EntityInterface $entity) {
+  $moduleHandler = \Drupal::service('module_handler');
+  if ($entity->getEntityTypeId() == 'node' && $moduleHandler->moduleExists('domain_access') ) {
+    $type = $entity->bundle();
+    if ($type == 'access_active_resources_from_cid') {
+      // Only run on new entities.
+      if ($entity->id() == null) {
+        $field_domain_access = $entity->get('field_domain_access')->getValue();
+        // Set default domain when null is passed.
+        if (empty($field_domain_access)) {
+          $entity->set('field_domain_access', 'amp_cyberinfrastructure_org');
+        }
+      }
     }
   }
 }
