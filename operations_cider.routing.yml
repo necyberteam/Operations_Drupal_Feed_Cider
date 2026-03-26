@@ -1,0 +1,13 @@
+operations_cider.resources_list:
+  path: '/api/resources'
+  defaults:
+    _controller: '\Drupal\operations_cider\Controller\ResourceDocumentationController::listResources'
+  requirements:
+    _permission: 'access content'
+
+operations_cider.resource_detail:
+  path: '/api/resources/{resource_id}'
+  defaults:
+    _controller: '\Drupal\operations_cider\Controller\ResourceDocumentationController::getResource'
+  requirements:
+    _permission: 'access content'
