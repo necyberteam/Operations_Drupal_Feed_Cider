@@ -70,6 +70,30 @@ class RpDocsScaffoldCommands extends DrushCommands {
     $resource_id = 'test-alpha-9999';
     $node = $this->findByResourceId($resource_id);
 
+    $ssh_logins = [
+      $this->createParagraph('rp_ssh_login', [
+        'field_rp_ssh_url' => [
+          'uri' => 'https://login01.alpha.test.example.edu',
+          'title' => 'login01',
+        ],
+        'field_rp_recommended' => TRUE,
+      ]),
+      $this->createParagraph('rp_ssh_login', [
+        'field_rp_ssh_url' => [
+          'uri' => 'https://login02.alpha.test.example.edu',
+          'title' => 'login02',
+        ],
+        'field_rp_recommended' => FALSE,
+      ]),
+      $this->createParagraph('rp_ssh_login', [
+        'field_rp_ssh_url' => [
+          'uri' => 'https://login03.alpha.test.example.edu',
+          'title' => 'login03',
+        ],
+        'field_rp_recommended' => FALSE,
+      ]),
+    ];
+
     $file_transfers = [
       $this->createParagraph('rp_file_transfer_method', [
         'field_rp_method' => 'Globus',
@@ -198,21 +222,6 @@ class RpDocsScaffoldCommands extends DrushCommands {
       ],
       'field_rp_mfa_required' => TRUE,
       'field_rp_account_required' => TRUE,
-      'field_rp_recommended_login' => 'login01.alpha.test.example.edu',
-      'field_rp_ssh_logins' => [
-        [
-          'uri' => 'https://login01.alpha.test.example.edu',
-          'title' => 'login01 | RECOMMENDED',
-        ],
-        [
-          'uri' => 'https://login02.alpha.test.example.edu',
-          'title' => 'login02',
-        ],
-        [
-          'uri' => 'https://login03.alpha.test.example.edu',
-          'title' => 'login03',
-        ],
-      ],
       'field_rp_login_help_links' => [
         [
           'uri' => 'https://access-ci.org/guides/ssh-keys',
@@ -264,6 +273,7 @@ class RpDocsScaffoldCommands extends DrushCommands {
 
     if ($node) {
       $this->clearParagraphs($node, [
+        'field_rp_ssh_login_nodes',
         'field_rp_file_transfer',
         'field_rp_storage',
         'field_rp_queue_specs',
@@ -282,6 +292,7 @@ class RpDocsScaffoldCommands extends DrushCommands {
     }
 
     // Attach paragraphs after node exists (so parent info is set correctly).
+    $this->attachParagraphs($node, 'field_rp_ssh_login_nodes', $ssh_logins);
     $this->attachParagraphs($node, 'field_rp_file_transfer', $file_transfers);
     $this->attachParagraphs($node, 'field_rp_storage', $storage);
     $this->attachParagraphs($node, 'field_rp_queue_specs', $queues);
