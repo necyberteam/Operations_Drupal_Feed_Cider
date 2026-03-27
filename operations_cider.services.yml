@@ -1,0 +1,7 @@
+services:
+  operations_cider.queue_metrics:
+    class: \Drupal\operations_cider\Service\QueueMetricsService
+    arguments: ['@http_client', '@entity_type.manager', '@logger.factory', '@key.repository']
+  operations_cider.top_software:
+    class: \Drupal\operations_cider\Service\TopSoftwareService
+    arguments: ['@http_client', '@entity_type.manager', '@logger.factory', '@key.repository']
