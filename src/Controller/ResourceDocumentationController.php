@@ -84,7 +84,7 @@ class ResourceDocumentationController extends ControllerBase {
       'mfa_required' => (bool) $node->get('field_rp_mfa_required')->value,
       'account_required' => (bool) $node->get('field_rp_account_required')->value,
       'ondemand_url' => $this->getLinkValue($node, 'field_rp_ondemand_url'),
-      'office_hours' => $node->get('field_rp_office_hours')->value,
+      'office_hours' => $this->getLinkValue($node, 'field_rp_office_hours'),
       'external_storage' => $node->get('field_rp_external_storage')->value,
       'ssh_logins' => $this->getParagraphData($node, 'field_rp_ssh_login_nodes', [
         'field_rp_ssh_url' => 'url',
@@ -93,7 +93,6 @@ class ResourceDocumentationController extends ControllerBase {
       'login_help_links' => $this->getMultiLinkValues($node, 'field_rp_login_help_links'),
       'account_setup_url' => $this->getLinkValue($node, 'field_rp_account_setup_url'),
       'support_links' => $this->getMultiLinkValues($node, 'field_rp_support_links'),
-      'useful_links' => $this->getMultiLinkValues($node, 'field_rp_useful_links'),
       'file_transfer' => $this->getParagraphData($node, 'field_rp_file_transfer', [
         'field_rp_method' => 'method',
         'field_rp_transfer_node' => 'transfer_node',
@@ -114,7 +113,6 @@ class ResourceDocumentationController extends ControllerBase {
         'field_rp_cpus' => 'cpus',
         'field_rp_gpus' => 'gpus',
         'field_rp_ram' => 'ram',
-        'field_rp_queue_nodes' => 'nodes',
       ]),
       'datasets' => $this->getParagraphData($node, 'field_rp_datasets', [
         'field_rp_dataset_name' => 'name',

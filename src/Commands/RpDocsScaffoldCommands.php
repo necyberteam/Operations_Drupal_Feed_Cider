@@ -246,17 +246,10 @@ class RpDocsScaffoldCommands extends DrushCommands {
           'title' => 'Slack',
         ],
       ],
-      'field_rp_useful_links' => [
-        [
-          'uri' => 'https://alpha.test.example.edu/software',
-          'title' => 'SEE ALL SOFTWARE AVAILABLE ON ALPHA',
-        ],
-        [
-          'uri' => 'https://sds.access-ci.org',
-          'title' => 'VISIT ALPHA SOFTWARE PAGE',
-        ],
+      'field_rp_office_hours' => [
+        'uri' => 'https://alpha.test.example.edu/office-hours',
+        'title' => 'Mon 2-4 PM EST',
       ],
-      'field_rp_office_hours' => 'Mon 2-4 PM EST',
       'field_rp_external_storage' => [
         'value' => '<h4>GETTING MORE STORAGE</h4><p>Users who need '
         . 'additional storage beyond the default quotas can request '
@@ -392,7 +385,10 @@ class RpDocsScaffoldCommands extends DrushCommands {
           'title' => 'Support Portal',
         ],
       ],
-      'field_rp_office_hours' => 'Tue/Thu 10 AM - 12 PM CST',
+      'field_rp_office_hours' => [
+        'uri' => 'https://gamma.test.example.edu/office-hours',
+        'title' => 'Tue/Thu 10 AM - 12 PM CST',
+      ],
     ];
 
     if ($node) {

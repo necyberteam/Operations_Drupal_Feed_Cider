@@ -99,6 +99,16 @@ function operations_cider_cron() {
       \Drupal::time()->getRequestTime()
     );
   }
+
+  // SDS availability check — weekly.
+  $last_sds = $state->get('operations_cider.sds_availability_last_run', 0);
+  if (\Drupal::time()->getRequestTime() - $last_sds > 604800) {
+    \Drupal::service('operations_cider.sds_availability')->updateAll();
+    $state->set(
+      'operations_cider.sds_availability_last_run',
+      \Drupal::time()->getRequestTime()
+    );
+  }
 }
 
 /**
