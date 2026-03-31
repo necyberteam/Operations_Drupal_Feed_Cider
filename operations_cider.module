@@ -90,7 +90,7 @@ function operations_cider_cron() {
     );
   }
 
-  // Top software from SDS — weekly.
+  // Top software from XDMoD + SDS enrichment — weekly.
   $last_software = $state->get('operations_cider.top_software_last_run', 0);
   if (\Drupal::time()->getRequestTime() - $last_software > 604800) {
     \Drupal::service('operations_cider.top_software')->updateAll();

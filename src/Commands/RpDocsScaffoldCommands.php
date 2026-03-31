@@ -419,47 +419,39 @@ class RpDocsScaffoldCommands extends DrushCommands {
   private function getAlphaSoftwareList(): array {
     return [
       [
-        'name' => 'AlphaFold',
-        'version' => '2.3.2',
-        'description' => 'AlphaFold, the state-of-the-art AI '
-        . 'system developed by DeepMind, is able to '
-        . 'computationally predict protein structures with '
-        . 'unprecedented accuracy.',
-        'discipline' => 'Bioinformatics, Biological Sciences',
+        'name' => 'python',
+        'job_count' => 54599,
+        'description' => 'Python is a versatile, high-level programming language widely used in scientific computing, data analysis, and machine learning.',
+        'research_field' => 'Computer Science',
+        'web_page' => 'https://www.python.org/',
       ],
       [
-        'name' => 'GROMACS',
-        'version' => '2024.1',
-        'description' => 'A versatile package to perform '
-        . 'molecular dynamics, i.e. simulate the Newtonian '
-        . 'equations of motion for systems with hundreds to '
-        . 'millions of particles.',
-        'discipline' => 'Chemistry, Molecular Dynamics',
+        'name' => 'gromacs',
+        'job_count' => 12315,
+        'description' => 'A versatile package to perform molecular dynamics, i.e. simulate the Newtonian equations of motion for systems with hundreds to millions of particles.',
+        'research_field' => 'Biological Sciences',
+        'web_page' => 'https://www.gromacs.org/',
       ],
       [
-        'name' => 'PyTorch',
-        'version' => '2.2.0',
-        'description' => 'An open source machine learning '
-        . 'framework that accelerates the path from research '
-        . 'prototyping to production deployment.',
-        'discipline' => 'Computer Science, Machine Learning',
+        'name' => 'lammps',
+        'job_count' => 9244,
+        'description' => 'Large-scale Atomic/Molecular Massively Parallel Simulator for molecular dynamics simulations.',
+        'research_field' => 'Materials Science',
+        'web_page' => 'https://www.lammps.org/',
       ],
       [
-        'name' => 'VASP',
-        'version' => '6.4.2',
-        'description' => 'The Vienna Ab initio Simulation '
-        . 'Package for atomic scale materials modelling, e.g. '
-        . 'electronic structure calculations and '
-        . 'quantum-mechanical molecular dynamics.',
-        'discipline' => 'Materials Science, Physics',
+        'name' => 'cp2k',
+        'job_count' => 9569,
+        'description' => 'A quantum chemistry and solid state physics software package for atomistic simulations.',
+        'research_field' => 'Chemistry',
+        'web_page' => 'https://www.cp2k.org/',
       ],
       [
-        'name' => 'Jupyter',
-        'version' => '4.0.11',
-        'description' => 'JupyterLab is the latest web-based '
-        . 'interactive development environment for notebooks, '
-        . 'code, and data.',
-        'discipline' => 'General Purpose',
+        'name' => 'amber',
+        'job_count' => 2449,
+        'description' => 'Amber is a suite of biomolecular simulation programs for molecular dynamics of proteins, nucleic acids, and carbohydrates.',
+        'research_field' => 'Biological Sciences',
+        'web_page' => 'https://ambermd.org/',
       ],
     ];
   }
