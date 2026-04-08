@@ -2,6 +2,7 @@
 
 namespace Drupal\operations_cider\Controller;
 
+use Drupal\Component\Utility\Html;
 use Drupal\Core\Controller\ControllerBase;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
@@ -131,6 +132,88 @@ class ResourceDocumentationController extends ControllerBase {
     }
 
     return new JsonResponse($data);
+  }
+
+  /**
+   * GET /api/resource-groups — list resource groups with aggregated sections.
+   *
+   * Returns one entry per `resource_group` node, with:
+   * - `slug`: stable URL slug derived from the group title via Html::getClass().
+   *   Matches the `data-resource-context` attribute set by aspTheme so the
+   *   QA bot can look up the same key the embedded bot reports.
+   * - `title`: clean human-readable group title (e.g. "Anvil", "Bridges-2").
+   * - `populated_sections`: union of documented section types across all
+   *   member CIDER variants. Used by the agent to build resource-scoped
+   *   capability menus.
+   * - `variants`: list of member CIDER variants for traceability.
+   */
+  public function listResourceGroups() {
+    // Field-to-section mapping. The agent's RPSectionCache uses these
+    // identifiers to build the section_question_map for scoped capabilities.
+    $section_fields = [
+      'field_rp_ssh_login_nodes' => 'login',
+      'field_rp_file_transfer' => 'file_transfer',
+      'field_rp_storage' => 'storage',
+      'field_rp_queue_specs' => 'queue_specs',
+      'field_rp_top_software' => 'top_software',
+      'field_rp_datasets' => 'datasets',
+    ];
+
+    $node_storage = $this->entityTypeManager()->getStorage('node');
+    $query = $node_storage
+      ->getQuery()
+      ->condition('type', 'resource_group')
+      ->condition('status', 1)
+      ->accessCheck(TRUE)
+      ->sort('title');
+    $group_nids = $query->execute();
+    $groups = $node_storage->loadMultiple($group_nids);
+
+    $result = [];
+    foreach ($groups as $group) {
+      $title = $group->getTitle();
+      $slug = Html::getClass($title);
+      $variant_refs = $group->get('field_cider_resources');
+
+      $variants = [];
+      $populated = [];
+      foreach ($variant_refs as $ref) {
+        $variant = $ref->entity;
+        if (!$variant) {
+          continue;
+        }
+        $variants[] = [
+          'nid' => (int) $variant->id(),
+          'title' => $variant->getTitle(),
+          'resource_id' => $variant->get('field_cider_resource_id')->value,
+          'global_resource_id' => $variant->get('field_access_global_resource_id')->value,
+        ];
+
+        // Check which section fields have content on this variant.
+        foreach ($section_fields as $field_name => $section_id) {
+          if (in_array($section_id, $populated, TRUE)) {
+            continue;
+          }
+          if ($variant->hasField($field_name) && !$variant->get($field_name)->isEmpty()) {
+            $populated[] = $section_id;
+          }
+        }
+      }
+
+      $result[] = [
+        'nid' => (int) $group->id(),
+        'slug' => $slug,
+        'title' => $title,
+        'url' => $group->toUrl('canonical', ['absolute' => TRUE])->toString(),
+        'populated_sections' => $populated,
+        'variants' => $variants,
+      ];
+    }
+
+    return new JsonResponse([
+      'count' => count($result),
+      'groups' => $result,
+    ]);
   }
 
   /**

@@ -11,3 +11,10 @@ operations_cider.resource_detail:
     _controller: '\Drupal\operations_cider\Controller\ResourceDocumentationController::getResource'
   requirements:
     _permission: 'access content'
+
+operations_cider.resource_groups_list:
+  path: '/api/resource-groups'
+  defaults:
+    _controller: '\Drupal\operations_cider\Controller\ResourceDocumentationController::listResourceGroups'
+  requirements:
+    _permission: 'access content'
