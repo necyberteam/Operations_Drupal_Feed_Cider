@@ -1,0 +1,221 @@
+<?php
+
+/**
+ * @file
+ * Install, update, and uninstall hooks for Operations CiDeR.
+ */
+
+use Drupal\paragraphs\Entity\Paragraph;
+
+/**
+ * Migrate rp_ssh_login paragraphs from a single link field to structured fields.
+ *
+ * The legacy `field_rp_ssh_url` link field was used to store a mixture of
+ * hostnames, SSH command snippets (with a "https://" prefix to bypass Link
+ * validation), and doc-page URLs. This splits that data into:
+ *
+ *   - field_rp_ssh_hostname (required)
+ *   - field_rp_ssh_user_placeholder (optional)
+ *   - field_rp_ssh_docs_url (optional)
+ *
+ * The legacy field is left in place for one release for safety.
+ */
+function operations_cider_update_9001(array &$sandbox): string {
+  $logger = \Drupal::logger('operations_cider');
+  $storage = \Drupal::entityTypeManager()->getStorage('paragraph');
+  $query = $storage->getQuery()
+    ->accessCheck(FALSE)
+    ->condition('type', 'rp_ssh_login');
+  $ids = $query->execute();
+
+  $migrated = 0;
+  $flagged = [];
+  $skipped = 0;
+
+  foreach ($ids as $pid) {
+    /** @var \Drupal\paragraphs\ParagraphInterface $paragraph */
+    $paragraph = $storage->load($pid);
+    if (!$paragraph) {
+      continue;
+    }
+
+    // Skip paragraphs that already have the new fields populated — this
+    // migration is idempotent.
+    if ($paragraph->hasField('field_rp_ssh_hostname')
+      && !$paragraph->get('field_rp_ssh_hostname')->isEmpty()) {
+      $skipped++;
+      continue;
+    }
+
+    if (!$paragraph->hasField('field_rp_ssh_url')
+      || $paragraph->get('field_rp_ssh_url')->isEmpty()) {
+      // No legacy data to migrate.
+      continue;
+    }
+
+    $link = $paragraph->get('field_rp_ssh_url')->first();
+    $uri = $link->uri ?? '';
+    $title = trim($link->title ?? '');
+
+    $parsed = _operations_cider_parse_legacy_ssh_url($uri, $title);
+
+    if (empty($parsed['hostname'])) {
+      // Couldn't derive a hostname — flag for manual review and skip write.
+      $flagged[] = sprintf('  #%d: uri=%s | title=%s', $pid, $uri, $title);
+      continue;
+    }
+
+    $paragraph->set('field_rp_ssh_hostname', $parsed['hostname']);
+    if (!empty($parsed['placeholder'])) {
+      $paragraph->set('field_rp_ssh_user_placeholder', $parsed['placeholder']);
+    }
+    if (!empty($parsed['docs_url'])) {
+      $paragraph->set('field_rp_ssh_docs_url', [
+        'uri' => $parsed['docs_url'],
+        'title' => $parsed['docs_url_title'] ?? '',
+      ]);
+    }
+    $paragraph->save();
+    $migrated++;
+
+    $logger->notice('Migrated SSH login paragraph @pid: hostname=@host, placeholder=@ph, docs=@docs', [
+      '@pid' => $pid,
+      '@host' => $parsed['hostname'],
+      '@ph' => $parsed['placeholder'] ?? '(none)',
+      '@docs' => $parsed['docs_url'] ?? '(none)',
+    ]);
+  }
+
+  $summary = sprintf(
+    'Migrated %d SSH login paragraphs (skipped %d already migrated, %d flagged for manual review).',
+    $migrated,
+    $skipped,
+    count($flagged)
+  );
+
+  if ($flagged) {
+    $logger->warning("Flagged paragraphs needing manual review:\n@list", [
+      '@list' => implode("\n", $flagged),
+    ]);
+    $summary .= "\nFlagged paragraphs (manual review needed):\n" . implode("\n", $flagged);
+  }
+
+  return $summary;
+}
+
+/**
+ * Parse a legacy field_rp_ssh_url value into structured components.
+ *
+ * Handles these patterns observed in production data:
+ *
+ *   https://login.example.edu                    → hostname=login.example.edu
+ *   https://login.example.edu  (title: Login)    → hostname=login.example.edu
+ *   https://ssh USER@login.example.edu           → hostname=login.example.edu, placeholder=USER
+ *   https://example.edu  (title: ssh USER@host)  → hostname from title, placeholder=USER
+ *   https://docs.x.edu/login/ (title: hostname)  → hostname=title, docs_url=uri
+ *   https://docs.x.edu/login/ (title: "Direct…") → hostname='' (flagged)
+ *
+ * @param string $uri
+ *   The legacy URI field value.
+ * @param string $title
+ *   The legacy title field value.
+ *
+ * @return array
+ *   Array with keys: hostname, placeholder, docs_url, docs_url_title.
+ */
+function _operations_cider_parse_legacy_ssh_url(string $uri, string $title): array {
+  $result = [
+    'hostname' => '',
+    'placeholder' => '',
+    'docs_url' => '',
+    'docs_url_title' => '',
+  ];
+
+  // Strip scheme prefix.
+  $stripped = preg_replace('#^https?://#i', '', $uri);
+
+  // Heuristic: if the URI path has extra segments beyond the hostname
+  // (i.e., contains a slash), treat it as a docs URL rather than a hostname.
+  $has_path = (bool) preg_match('#/.+#', $stripped);
+
+  if ($has_path) {
+    // The URI is a docs page. Try to recover the hostname from the title.
+    $title_parsed = _operations_cider_parse_ssh_fragment($title);
+    if (!empty($title_parsed['hostname'])) {
+      $result['hostname'] = $title_parsed['hostname'];
+      $result['placeholder'] = $title_parsed['placeholder'];
+    }
+    $result['docs_url'] = $uri;
+    $result['docs_url_title'] = $title;
+    return $result;
+  }
+
+  // URI is a plain hostname (possibly with "ssh USER@" prepended).
+  $uri_parsed = _operations_cider_parse_ssh_fragment($stripped);
+  if (!empty($uri_parsed['hostname'])) {
+    $result['hostname'] = $uri_parsed['hostname'];
+    $result['placeholder'] = $uri_parsed['placeholder'];
+    return $result;
+  }
+
+  // URI yielded nothing — try the title.
+  $title_parsed = _operations_cider_parse_ssh_fragment($title);
+  if (!empty($title_parsed['hostname'])) {
+    $result['hostname'] = $title_parsed['hostname'];
+    $result['placeholder'] = $title_parsed['placeholder'];
+  }
+
+  return $result;
+}
+
+/**
+ * Parse a string fragment into {hostname, placeholder}.
+ *
+ * Handles "ssh USER@host" and "USER@host" and bare "host" forms.
+ *
+ * @param string $fragment
+ *   The raw string.
+ *
+ * @return array
+ *   Array with keys: hostname, placeholder.
+ */
+function _operations_cider_parse_ssh_fragment(string $fragment): array {
+  $fragment = trim($fragment);
+
+  // Strip leading "ssh ".
+  $fragment = preg_replace('/^ssh\s+/i', '', $fragment);
+
+  // Split on "@" if present.
+  if (str_contains($fragment, '@')) {
+    [$placeholder, $hostname] = explode('@', $fragment, 2);
+    $hostname = trim($hostname);
+    $placeholder = trim($placeholder);
+
+    if (_operations_cider_looks_like_hostname($hostname)) {
+      return [
+        'hostname' => $hostname,
+        'placeholder' => $placeholder,
+      ];
+    }
+  }
+
+  if (_operations_cider_looks_like_hostname($fragment)) {
+    return [
+      'hostname' => $fragment,
+      'placeholder' => '',
+    ];
+  }
+
+  return ['hostname' => '', 'placeholder' => ''];
+}
+
+/**
+ * Check whether a string looks like a hostname (contains a dot, no spaces).
+ */
+function _operations_cider_looks_like_hostname(string $value): bool {
+  $value = trim($value);
+  if ($value === '' || str_contains($value, ' ')) {
+    return FALSE;
+  }
+  return str_contains($value, '.');
+}
