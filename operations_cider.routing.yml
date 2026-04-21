@@ -1,19 +1,19 @@
 operations_cider.resources_list:
-  path: '/api/resources'
+  path: '/api/1.0/resources'
   defaults:
     _controller: '\Drupal\operations_cider\Controller\ResourceDocumentationController::listResources'
   requirements:
     _permission: 'access content'
 
 operations_cider.resource_detail:
-  path: '/api/resources/{resource_id}'
+  path: '/api/1.0/resources/{resource_id}'
   defaults:
     _controller: '\Drupal\operations_cider\Controller\ResourceDocumentationController::getResource'
   requirements:
     _permission: 'access content'
 
 operations_cider.resource_groups_list:
-  path: '/api/resource-groups'
+  path: '/api/1.0/resource-groups'
   defaults:
     _controller: '\Drupal\operations_cider\Controller\ResourceDocumentationController::listResourceGroups'
   requirements:

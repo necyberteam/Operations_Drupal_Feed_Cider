@@ -3,8 +3,13 @@
 namespace Drupal\operations_cider\Controller;
 
 use Drupal\Component\Utility\Html;
+use Drupal\Core\Cache\CacheableJsonResponse;
+use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\operations_cider\Service\ResourceGroupInheritanceService;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 
 /**
  * REST endpoints for resource provider documentation.
@@ -15,9 +20,31 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 class ResourceDocumentationController extends ControllerBase {
 
   /**
-   * GET /api/resources — list all documented resources.
+   * @var \Drupal\operations_cider\Service\ResourceGroupInheritanceService
    */
-  public function listResources() {
+  protected ResourceGroupInheritanceService $inheritance;
+
+  public function __construct(ResourceGroupInheritanceService $inheritance) {
+    $this->inheritance = $inheritance;
+  }
+
+  public static function create(ContainerInterface $container): self {
+    return new self(
+      $container->get('operations_cider.resource_group_inheritance'),
+    );
+  }
+
+  /**
+   * GET /api/resources — list resources.
+   *
+   * By default, returns only resources whose `field_rp_description` is populated
+   * (i.e. resources the team has written documentation for). Pass
+   * `?documented=false` to include all CIDER-imported resources.
+   */
+  public function listResources(Request $request) {
+    $documented = $request->query->get('documented', 'true');
+    $documented_only = !in_array(strtolower((string) $documented), ['false', '0', 'no'], TRUE);
+
     $query = $this->entityTypeManager()
       ->getStorage('node')
       ->getQuery()
@@ -25,6 +52,13 @@ class ResourceDocumentationController extends ControllerBase {
       ->condition('status', 1)
       ->accessCheck(TRUE)
       ->sort('title');
+    if ($documented_only) {
+      // Match the in-PHP isEmpty() check used to populate has_documentation:
+      // the field must be present and the value column must be non-empty.
+      // Covers both NULL rows (never edited) and empty-string rows (cleared).
+      $query->exists('field_rp_description.value');
+      $query->condition('field_rp_description.value', '', '<>');
+    }
 
     $nids = $query->execute();
     $nodes = $this->entityTypeManager()->getStorage('node')->loadMultiple($nids);
@@ -44,10 +78,15 @@ class ResourceDocumentationController extends ControllerBase {
       ];
     }
 
-    return new JsonResponse([
+    $response = new CacheableJsonResponse([
       'count' => count($resources),
       'resources' => $resources,
     ]);
+    $cacheability = (new CacheableMetadata())
+      ->addCacheTags(['node_list:access_active_resources_from_cid'])
+      ->addCacheContexts(['url.query_args:documented']);
+    $response->addCacheableDependency($cacheability);
+    return $response;
   }
 
   /**
@@ -70,6 +109,12 @@ class ResourceDocumentationController extends ControllerBase {
     }
 
     $node = $this->entityTypeManager()->getStorage('node')->load(reset($nids));
+    $group = $this->inheritance->findParentGroup($node);
+
+    // Apply Group-level inheritance to a clone so our in-memory mutations
+    // don't leak into Drupal's static entity cache for downstream callers.
+    $node = clone $node;
+    $this->inheritance->applyInheritance($node);
 
     $data = [
       'nid' => (int) $node->id(),
@@ -86,9 +131,15 @@ class ResourceDocumentationController extends ControllerBase {
       'account_required' => (bool) $node->get('field_rp_account_required')->value,
       'ondemand_url' => $this->getLinkValue($node, 'field_rp_ondemand_url'),
       'office_hours' => $this->getLinkValue($node, 'field_rp_office_hours'),
-      'external_storage' => $node->get('field_rp_external_storage')->value,
+      'login_text' => $this->getScalarValue($node, 'field_rp_login_text'),
+      'file_transfer_text' => $this->getScalarValue($node, 'field_rp_file_transfer_text'),
+      'jobs_info' => $this->getScalarValue($node, 'field_rp_jobs_info'),
+      'software_list_url' => $this->getLinkValue($node, 'field_rp_software_list_url'),
+      'external_storage' => $this->getScalarValue($node, 'field_rp_external_storage'),
       'ssh_logins' => $this->getParagraphData($node, 'field_rp_ssh_login_nodes', [
-        'field_rp_ssh_url' => 'url',
+        'field_rp_ssh_hostname' => 'hostname',
+        'field_rp_ssh_user_placeholder' => 'username_placeholder',
+        'field_rp_ssh_docs_url' => 'docs_url',
         'field_rp_recommended' => 'recommended',
       ]),
       'login_help_links' => $this->getMultiLinkValues($node, 'field_rp_login_help_links'),
@@ -131,7 +182,14 @@ class ResourceDocumentationController extends ControllerBase {
       $data['top_software'] = [];
     }
 
-    return new JsonResponse($data);
+    $response = new CacheableJsonResponse($data);
+    $cacheability = (new CacheableMetadata())->addCacheableDependency($node);
+    if ($group) {
+      // Inherited values mean edits to the Group must invalidate this response.
+      $cacheability->addCacheableDependency($group);
+    }
+    $response->addCacheableDependency($cacheability);
+    return $response;
   }
 
   /**
@@ -210,17 +268,33 @@ class ResourceDocumentationController extends ControllerBase {
       ];
     }
 
-    return new JsonResponse([
+    $response = new CacheableJsonResponse([
       'count' => count($result),
       'groups' => $result,
     ]);
+    $cacheability = (new CacheableMetadata())->addCacheTags([
+      'node_list:resource_group',
+      'node_list:access_active_resources_from_cid',
+    ]);
+    $response->addCacheableDependency($cacheability);
+    return $response;
+  }
+
+  /**
+   * Extract a scalar (text/long/string) field value, safe on missing fields.
+   */
+  private function getScalarValue($node, string $field_name): ?string {
+    if (!$node->hasField($field_name) || $node->get($field_name)->isEmpty()) {
+      return NULL;
+    }
+    return $node->get($field_name)->value;
   }
 
   /**
    * Extract a single link field value.
    */
   private function getLinkValue($node, string $field_name): ?string {
-    if ($node->get($field_name)->isEmpty()) {
+    if (!$node->hasField($field_name) || $node->get($field_name)->isEmpty()) {
       return NULL;
     }
     $value = $node->get($field_name)->first();
@@ -232,6 +306,9 @@ class ResourceDocumentationController extends ControllerBase {
    */
   private function getMultiLinkValues($node, string $field_name): array {
     $links = [];
+    if (!$node->hasField($field_name)) {
+      return $links;
+    }
     foreach ($node->get($field_name) as $item) {
       try {
         $url = $item->getUrl()->toString();
