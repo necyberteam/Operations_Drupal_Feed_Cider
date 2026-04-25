@@ -17,6 +17,7 @@ dependencies:
     - field.field.node.access_active_resources_from_cid.field_cider_raw_data_url
     - field.field.node.access_active_resources_from_cid.field_cider_resource_id
     - field.field.node.access_active_resources_from_cid.field_cider_resource_type
+    - field.field.node.access_active_resources_from_cid.field_cider_short_name
     - node.type.access_active_resources_from_cid
   module:
     - datetime
@@ -156,3 +157,4 @@ content:
     region: content
 hidden:
   feeds_item: true
+  field_cider_short_name: true

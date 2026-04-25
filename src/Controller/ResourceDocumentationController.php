@@ -68,6 +68,7 @@ class ResourceDocumentationController extends ControllerBase {
       $resources[] = [
         'nid' => (int) $node->id(),
         'title' => $node->getTitle(),
+        'short_name' => $this->stringValue($node, 'field_cider_short_name'),
         'resource_id' => $node->get('field_cider_resource_id')->value,
         'global_resource_id' => $node->get('field_access_global_resource_id')->value,
         'org_name' => $node->get('field_access_org_name')->value,
@@ -119,6 +120,7 @@ class ResourceDocumentationController extends ControllerBase {
     $data = [
       'nid' => (int) $node->id(),
       'title' => $node->getTitle(),
+      'short_name' => $this->stringValue($node, 'field_cider_short_name'),
       'resource_id' => $node->get('field_cider_resource_id')->value,
       'global_resource_id' => $node->get('field_access_global_resource_id')->value,
       'resource_type' => $node->get('field_cider_resource_type')->value,
@@ -243,6 +245,7 @@ class ResourceDocumentationController extends ControllerBase {
         $variants[] = [
           'nid' => (int) $variant->id(),
           'title' => $variant->getTitle(),
+          'short_name' => $this->stringValue($variant, 'field_cider_short_name'),
           'resource_id' => $variant->get('field_cider_resource_id')->value,
           'global_resource_id' => $variant->get('field_access_global_resource_id')->value,
         ];
@@ -288,6 +291,16 @@ class ResourceDocumentationController extends ControllerBase {
       return NULL;
     }
     return $node->get($field_name)->value;
+  }
+
+  /**
+   * Safely read a string field, returning NULL if empty or missing.
+   */
+  private function stringValue($node, string $field_name): ?string {
+    if (!$node->hasField($field_name) || $node->get($field_name)->isEmpty()) {
+      return NULL;
+    }
+    return $node->get($field_name)->value ?: NULL;
   }
 
   /**

@@ -17,6 +17,7 @@ dependencies:
     - field.field.node.access_active_resources_from_cid.field_cider_raw_data_url
     - field.field.node.access_active_resources_from_cid.field_cider_resource_id
     - field.field.node.access_active_resources_from_cid.field_cider_resource_type
+    - field.field.node.access_active_resources_from_cid.field_cider_short_name
     - node.type.access_active_resources_from_cid
   module:
     - datetime
@@ -130,6 +131,14 @@ content:
   field_cider_resource_type:
     type: string_textfield
     weight: 4
+    region: content
+    settings:
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  field_cider_short_name:
+    type: string_textfield
+    weight: 5
     region: content
     settings:
       size: 60
