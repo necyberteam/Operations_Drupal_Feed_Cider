@@ -29,3 +29,40 @@ function operations_cider_post_update_backfill_short_name(): string {
 
   return "Re-imported {$imported} CIDeR feed(s) to backfill field_cider_short_name.";
 }
+
+/**
+ * Generate /documentation/resources/* aliases for RP documentation nodes.
+ *
+ * The pathauto pattern moved from `rp-documentation/[node:title]` to
+ * `documentation/resources/[node:title]`. Existing aliases under
+ * /rp-documentation are intentionally left in place so old links keep
+ * working — they should be cleaned up separately a few weeks after launch.
+ * This hook generates the new aliases for both content types so re-saving
+ * each existing node manually is not required.
+ */
+function operations_cider_post_update_generate_documentation_resources_aliases(): string {
+  if (!\Drupal::moduleHandler()->moduleExists('pathauto')) {
+    return 'pathauto module not enabled — skipping alias regeneration.';
+  }
+
+  $generator = \Drupal::service('pathauto.generator');
+  $storage = \Drupal::entityTypeManager()->getStorage('node');
+
+  $created = 0;
+  foreach (['access_active_resources_from_cid', 'resource_group'] as $bundle) {
+    $nids = $storage->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('type', $bundle)
+      ->execute();
+    foreach ($storage->loadMultiple($nids) as $node) {
+      // 'create' (not 'update') leaves existing aliases as-is and adds the
+      // new pattern's alias on top — old /rp-documentation/* URLs keep
+      // working until they're cleaned up later.
+      if ($generator->createEntityAlias($node, 'create')) {
+        $created++;
+      }
+    }
+  }
+
+  return "Generated {$created} new /documentation/resources/* aliases (existing /rp-documentation/* aliases preserved).";
+}
