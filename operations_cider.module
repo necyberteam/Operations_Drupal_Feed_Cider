@@ -151,6 +151,29 @@ function operations_cider_cron() {
 }
 
 /**
+ * Resolves the display name for a CiDeR resource node.
+ *
+ * Precedence: editor override (field_rp_display_name), then the CiDeR short
+ * name (field_cider_short_name), then the CiDeR descriptive title. A blank
+ * override falls through, so most nodes resolve to the short name.
+ */
+function operations_cider_resource_display_name(\Drupal\node\NodeInterface $node): string {
+  if ($node->hasField('field_rp_display_name')) {
+    $display = trim((string) $node->get('field_rp_display_name')->value);
+    if ($display !== '') {
+      return $display;
+    }
+  }
+  if ($node->hasField('field_cider_short_name')) {
+    $short = trim((string) $node->get('field_cider_short_name')->value);
+    if ($short !== '') {
+      return $short;
+    }
+  }
+  return (string) $node->getTitle();
+}
+
+/**
  * Implements hook_entity_create().
  */
 function operations_cider_entity_presave(EntityInterface $entity) {
