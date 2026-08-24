@@ -89,7 +89,7 @@ class ResourceDocumentationController extends ControllerBase {
     foreach ($nodes as $node) {
       $resources[] = [
         'nid' => (int) $node->id(),
-        'title' => $node->getTitle(),
+        'title' => operations_cider_resource_display_name($node),
         'short_name' => $this->stringValue($node, 'field_cider_short_name'),
         'resource_id' => $node->get('field_cider_resource_id')->value,
         'global_resource_id' => $node->get('field_access_global_resource_id')->value,
@@ -144,7 +144,7 @@ class ResourceDocumentationController extends ControllerBase {
 
     $data = [
       'nid' => (int) $node->id(),
-      'title' => $node->getTitle(),
+      'title' => operations_cider_resource_display_name($node),
       'short_name' => $this->stringValue($node, 'field_cider_short_name'),
       'resource_id' => $node->get('field_cider_resource_id')->value,
       'global_resource_id' => $node->get('field_access_global_resource_id')->value,
@@ -325,7 +325,7 @@ class ResourceDocumentationController extends ControllerBase {
         }
         $variants[] = [
           'nid' => (int) $variant->id(),
-          'title' => $variant->getTitle(),
+          'title' => operations_cider_resource_display_name($variant),
           'short_name' => $this->stringValue($variant, 'field_cider_short_name'),
           'resource_id' => $variant->get('field_cider_resource_id')->value,
           'global_resource_id' => $variant->get('field_access_global_resource_id')->value,

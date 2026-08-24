@@ -70,4 +70,14 @@ class ResourceDisplayNameTest extends KernelTestBase {
     $node->save();
     $this->assertSame('Plain Page Title', operations_cider_resource_display_name($node));
   }
+
+  public function testNodeLoadDoesNotMutateTitle(): void {
+    $node = $this->makeNode('', 'Short', 'Descriptive Title');
+    $nid = $node->id();
+    \Drupal::entityTypeManager()->getStorage('node')->resetCache([$nid]);
+    $reloaded = Node::load($nid);
+    // After the load hook is removed, getTitle() returns the persisted title,
+    // not the short name.
+    $this->assertSame('Descriptive Title', $reloaded->getTitle());
+  }
 }
