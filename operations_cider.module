@@ -144,6 +144,26 @@ function operations_cider_resource_display_name(\Drupal\node\NodeInterface $node
 }
 
 /**
+ * Implements hook_preprocess_html().
+ *
+ * Mirror the resource H1: use the resolved display name in the browser
+ * <title> for resource pages, not the raw node title. Metatag's own
+ * hook_preprocess_html() (metatag_preprocess_html()) overwrites
+ * $variables['head_title'] wholesale when a title metatag is configured for
+ * the route, so this must run after it — operations_cider is registered
+ * after metatag in core.extension.yml, so module hook invocation order
+ * already puts this last; verified empirically (see task-8-report.md).
+ */
+function operations_cider_preprocess_html(array &$variables) {
+  $node = \Drupal::routeMatch()->getParameter('node');
+  if ($node instanceof \Drupal\node\NodeInterface
+      && $node->bundle() === 'access_active_resources_from_cid'
+      && isset($variables['head_title']['title'])) {
+    $variables['head_title']['title'] = operations_cider_resource_display_name($node);
+  }
+}
+
+/**
  * Implements hook_preprocess_node().
  */
 function operations_cider_preprocess_node(array &$variables) {
