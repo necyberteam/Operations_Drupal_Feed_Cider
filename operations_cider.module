@@ -150,9 +150,12 @@ function operations_cider_resource_display_name(\Drupal\node\NodeInterface $node
  * <title> for resource pages, not the raw node title. Metatag's own
  * hook_preprocess_html() (metatag_preprocess_html()) overwrites
  * $variables['head_title'] wholesale when a title metatag is configured for
- * the route, so this must run after it — operations_cider is registered
- * after metatag in core.extension.yml, so module hook invocation order
- * already puts this last; verified empirically (see task-8-report.md).
+ * the route, so this must run after it. Module registration order in
+ * core.extension.yml currently happens to put operations_cider after
+ * metatag, but that's incidental and could silently flip on a future
+ * module reinstall/reorder. operations_cider_module_implements_alter()
+ * below pins this hook to run last explicitly, so the <title> override
+ * doesn't depend on extension.yml ordering.
  */
 function operations_cider_preprocess_html(array &$variables) {
   $node = \Drupal::routeMatch()->getParameter('node');
@@ -232,5 +235,20 @@ function operations_cider_entity_presave(EntityInterface $entity) {
         }
       }
     }
+  }
+}
+
+/**
+ * Implements hook_module_implements_alter().
+ *
+ * Ensure operations_cider's preprocess_html runs last so the resource
+ * <title> override is not clobbered by another module (e.g. metatag)
+ * writing head_title. Removes reliance on core.extension.yml ordering.
+ */
+function operations_cider_module_implements_alter(&$implementations, $hook) {
+  if ($hook === 'preprocess_html' && isset($implementations['operations_cider'])) {
+    $group = $implementations['operations_cider'];
+    unset($implementations['operations_cider']);
+    $implementations['operations_cider'] = $group;
   }
 }
