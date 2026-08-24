@@ -32,6 +32,7 @@ function operations_cider_node_insert(EntityInterface $entity) {
  */
 function operations_cider_form_node_access_active_resources_from_cid_edit_form_alter(&$form, FormStateInterface $form_state, $form_id) {
   $cider_fields = [
+    'title',
     'body',
     'field_cider_resource_id',
     'field_access_global_resource_id',
