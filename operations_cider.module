@@ -143,6 +143,32 @@ function operations_cider_resource_display_name(\Drupal\node\NodeInterface $node
 }
 
 /**
+ * Implements hook_preprocess_node().
+ */
+function operations_cider_preprocess_node(array &$variables) {
+  $node = $variables['node'] ?? NULL;
+  if ($node instanceof \Drupal\node\NodeInterface
+      && $node->bundle() === 'access_active_resources_from_cid') {
+    $variables['resource_display_name'] = operations_cider_resource_display_name($node);
+  }
+}
+
+/**
+ * Implements hook_preprocess_page_title().
+ *
+ * The resource page H1 comes from the routed node's label; resolve the
+ * display name here so the H1 shows the editor override / short name
+ * rather than the raw title.
+ */
+function operations_cider_preprocess_page_title(array &$variables) {
+  $node = \Drupal::routeMatch()->getParameter('node');
+  if ($node instanceof \Drupal\node\NodeInterface
+      && $node->bundle() === 'access_active_resources_from_cid') {
+    $variables['title'] = operations_cider_resource_display_name($node);
+  }
+}
+
+/**
  * Implements hook_entity_create().
  */
 function operations_cider_entity_presave(EntityInterface $entity) {
