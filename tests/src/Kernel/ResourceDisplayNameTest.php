@@ -80,4 +80,15 @@ class ResourceDisplayNameTest extends KernelTestBase {
     // not the short name.
     $this->assertSame('Descriptive Title', $reloaded->getTitle());
   }
+
+  public function testEditorDisplayNamePersistsAcrossReload(): void {
+    $node = $this->makeNode('', 'Short', 'Descriptive Title');
+    $node->set('field_rp_display_name', 'My Custom Name');
+    $node->save();
+    $nid = $node->id();
+    \Drupal::entityTypeManager()->getStorage('node')->resetCache([$nid]);
+    $reloaded = Node::load($nid);
+    $this->assertSame('My Custom Name', $reloaded->get('field_rp_display_name')->value);
+    $this->assertSame('My Custom Name', operations_cider_resource_display_name($reloaded));
+  }
 }
