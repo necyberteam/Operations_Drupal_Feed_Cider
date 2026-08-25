@@ -14,6 +14,9 @@ services:
   operations_cider.ood_software:
     class: \Drupal\operations_cider\Service\OodSoftwareService
     arguments: ['@entity_type.manager', '@logger.factory', '@operations_cider.sds_enrichment']
+  operations_cider.sds_software:
+    class: \Drupal\operations_cider\Service\SdsSoftwareService
+    arguments: ['@entity_type.manager', '@logger.factory', '@operations_cider.sds_enrichment']
   operations_cider.resource_group_inheritance:
     class: \Drupal\operations_cider\Service\ResourceGroupInheritanceService
     arguments: ['@entity_type.manager']

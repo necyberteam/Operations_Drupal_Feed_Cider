@@ -123,3 +123,28 @@ function operations_cider_post_update_d2719_02_regenerate_short_aliases(): strin
 
   return "Regenerated {$updated} /documentation/resources/* aliases using short_name pattern.";
 }
+
+/**
+ * Populate field_rp_sds_software so the feature is live at deploy time.
+ *
+ * The weekly sweep in operations_cider_cron() only runs at 2 AM, so without
+ * this backfill the SDS software tables stay empty for up to a day after
+ * deploy.
+ */
+function operations_cider_post_update_d2819_01_backfill_sds_software(): string {
+  try {
+    \Drupal::service('operations_cider.sds_software')->updateAll();
+  }
+  catch (\Throwable $e) {
+    // Leave the state key unset so the next 2 AM cron retries rather than
+    // deferring the backfill a full week.
+    return 'SDS software backfill failed: ' . $e->getMessage() . ' — cron will retry.';
+  }
+
+  \Drupal::state()->set(
+    'operations_cider.sds_software_last_run',
+    \Drupal::time()->getRequestTime()
+  );
+
+  return 'Backfilled field_rp_sds_software from the Software Documentation Service.';
+}
