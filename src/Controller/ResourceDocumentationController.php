@@ -72,8 +72,7 @@ class ResourceDocumentationController extends ControllerBase {
       ->getQuery()
       ->condition('type', 'access_active_resources_from_cid')
       ->condition('status', 1)
-      ->accessCheck(TRUE)
-      ->sort('title');
+      ->accessCheck(TRUE);
     if ($documented_only) {
       // Match the in-PHP isEmpty() check used to populate has_documentation:
       // the field must be present and the value column must be non-empty.
@@ -101,6 +100,11 @@ class ResourceDocumentationController extends ControllerBase {
         'last_modified' => date('c', $node->getChangedTime()),
       ];
     }
+
+    // Sort by the display title actually returned (field_rp_display_name ->
+    // field_cider_short_name -> raw title), not the DB title used to build
+    // the query above — an entity query can't express that fallback in SQL.
+    usort($resources, fn(array $a, array $b) => strcasecmp($a['title'], $b['title']));
 
     $response = new CacheableJsonResponse([
       'count' => count($resources),
