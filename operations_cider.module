@@ -178,36 +178,15 @@ function operations_cider_preprocess_node(array &$variables) {
 }
 
 /**
- * Implements hook_node_links_alter().
- *
- * NodeViewBuilder::buildLinks() hardcodes $node->label() into the teaser
- * "Read more" link's accessible text and title attribute via a lazy
- * builder, so it can't be reached from hook_preprocess_node() or a
- * template override (the links render array isn't materialized until the
- * lazy builder runs at render time). Rewrite it here — the supported
- * alter hook for this render array — so the link also shows the resolved
- * display name instead of the raw title.
- */
-function operations_cider_node_links_alter(array &$links, \Drupal\node\NodeInterface $entity, array &$context) {
-  if ($entity->bundle() !== 'access_active_resources_from_cid') {
-    return;
-  }
-  if (!isset($links['node']['#links']['node-readmore'])) {
-    return;
-  }
-  $display_name = operations_cider_resource_display_name($entity);
-  $readmore = &$links['node']['#links']['node-readmore'];
-  $readmore['title'] = t('Read more<span class="visually-hidden"> about @title</span>', [
-    '@title' => $display_name,
-  ]);
-  $readmore['attributes']['title'] = $display_name;
-}
-
-/**
  * Implements hook_preprocess_page_title().
  *
- * The resource page H1 comes from the routed node's label; resolve the
- * display name here so the H1 shows the editor override / short name
+ * Core's EntityViewController::buildTitle() does not set the node entity
+ * type's 'enable_page_title_template' property, so for full node view pages
+ * it takes the legacy fallback: it renders the 'title' field formatter
+ * (the raw title) and uses that rendered markup as #title, bypassing
+ * $entity->label() entirely. The bundle class's label() override therefore
+ * never reaches the H1 through core's own title-resolution path. Resolve
+ * the display name here so the H1 shows the editor override / short name
  * rather than the raw title.
  */
 function operations_cider_preprocess_page_title(array &$variables) {
