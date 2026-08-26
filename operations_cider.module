@@ -239,6 +239,19 @@ function operations_cider_entity_presave(EntityInterface $entity) {
 }
 
 /**
+ * Implements hook_entity_bundle_info_alter().
+ *
+ * Registers the bundle class that overrides label() so the resource display
+ * name resolves at the source for every consumer that calls label().
+ */
+function operations_cider_entity_bundle_info_alter(array &$bundles): void {
+  if (isset($bundles['node']['access_active_resources_from_cid'])) {
+    $bundles['node']['access_active_resources_from_cid']['class'] =
+      \Drupal\operations_cider\Entity\CiderResourceNode::class;
+  }
+}
+
+/**
  * Implements hook_module_implements_alter().
  *
  * Ensure operations_cider's preprocess_html runs last so the resource

@@ -91,4 +91,21 @@ class ResourceDisplayNameTest extends KernelTestBase {
     $this->assertSame('My Custom Name', $reloaded->get('field_rp_display_name')->value);
     $this->assertSame('My Custom Name', operations_cider_resource_display_name($reloaded));
   }
+
+  public function testBundleClassLabelReturnsDisplayName(): void {
+    $node = $this->makeNode('Editor Display', 'Short', 'Descriptive Title');
+    $this->assertSame('Editor Display', $node->label());
+  }
+
+  public function testBundleClassLabelFallsBackToShort(): void {
+    $node = $this->makeNode('', 'Short', 'Descriptive Title');
+    $this->assertSame('Short', $node->label());
+  }
+
+  public function testNonResourceNodeLabelUnaffected(): void {
+    // 'page' bundle has no bundle class override; label() is the raw title.
+    $n = Node::create(['type' => 'page', 'title' => 'Plain Title']);
+    $n->save();
+    $this->assertSame('Plain Title', $n->label());
+  }
 }
