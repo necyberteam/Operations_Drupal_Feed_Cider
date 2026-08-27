@@ -100,4 +100,56 @@ class SdsEnrichmentServiceTest extends UnitTestCase {
     $this->assertSame(['name' => 'unmatched'], $out[3]); // untouched
   }
 
+  /**
+   * Tests that mapSdsFields drops feed URLs that are not http(s).
+   *
+   * These land in link hrefs, so a javascript: value would otherwise render
+   * as a live clickable link.
+   */
+  public function testMapSdsFieldsDropsNonHttpUrls(): void {
+    $svc = $this->makeService();
+    $mapped = $svc->mapSdsFields([
+      'software_description' => 'plain',
+      'software_web_page' => 'javascript:alert(1)',
+      'software_documentation' => 'data:text/html,<script>alert(1)</script>',
+    ]);
+    $this->assertSame('', $mapped['web_page']);
+    $this->assertSame('', $mapped['documentation']);
+  }
+
+  /**
+   * Tests the http(s) scheme allowlist applied to feed-supplied URLs.
+   *
+   * @dataProvider providerSafeUrl
+   */
+  public function testSafeUrl($input, string $expected): void {
+    $this->assertSame($expected, SdsEnrichmentService::safeUrl($input));
+  }
+
+  /**
+   * Data for testSafeUrl().
+   */
+  public static function providerSafeUrl(): array {
+    return [
+      'https kept' => ['https://example.org/x', 'https://example.org/x'],
+      'http kept' => ['http://example.org/x', 'http://example.org/x'],
+      'uppercase scheme kept' => ['HTTPS://example.org', 'HTTPS://example.org'],
+      'surrounding whitespace trimmed' => ["  https://example.org  ", 'https://example.org'],
+      'javascript dropped' => ['javascript:alert(1)', ''],
+      'mixed case javascript dropped' => ['JaVaScRiPt:alert(1)', ''],
+      'javascript with embedded newline dropped' => ["java\nscript:alert(1)", ''],
+      'leading whitespace before javascript dropped' => ['  javascript:alert(1)', ''],
+      'data dropped' => ['data:text/html,<script>alert(1)</script>', ''],
+      'vbscript dropped' => ['vbscript:msgbox(1)', ''],
+      'ftp dropped' => ['ftp://example.org/x', ''],
+      'mailto dropped' => ['mailto:someone@example.org', ''],
+      'protocol relative dropped' => ['//example.org/x', ''],
+      'relative path dropped' => ['/software/gromacs', ''],
+      'empty string' => ['', ''],
+      'whitespace only' => ['   ', ''],
+      'null' => [NULL, ''],
+      'non string' => [42, ''],
+    ];
+  }
+
 }

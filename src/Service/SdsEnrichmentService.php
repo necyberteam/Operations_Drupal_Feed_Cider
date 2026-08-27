@@ -285,9 +285,39 @@ class SdsEnrichmentService {
     return [
       'description' => ($sds_item['ai_description'] ?? '') ?: ($sds_item['software_description'] ?? '') ?: '',
       'research_field' => $sds_item['ai_research_field'] ?? '',
-      'web_page' => $sds_item['software_web_page'] ?? '',
-      'documentation' => $sds_item['software_documentation'] ?? '',
+      'web_page' => self::safeUrl($sds_item['software_web_page'] ?? ''),
+      'documentation' => self::safeUrl($sds_item['software_documentation'] ?? ''),
     ];
+  }
+
+  /**
+   * Keep a feed-supplied URL only when it carries an http(s) scheme.
+   *
+   * These values are stored and later emitted as link hrefs and over the
+   * resources API, so anything that is not plainly an absolute web address --
+   * javascript:, data:, a protocol-relative //host, a relative path -- is
+   * dropped rather than passed through. Callers treat an empty string as
+   * "no link".
+   *
+   * @param mixed $url
+   *   The raw value from the SDS feed, or from editor-authored JSON.
+   *
+   * @return string
+   *   The URL, or an empty string if it is missing or not http(s).
+   */
+  public static function safeUrl($url): string {
+    if (!is_string($url)) {
+      return '';
+    }
+    $url = trim($url);
+    if ($url === '') {
+      return '';
+    }
+    // parse_url() returns NULL for a scheme obfuscated with embedded control
+    // characters, and for protocol-relative and relative URLs, so both the
+    // dangerous and the merely unusable cases fall through to ''.
+    $scheme = parse_url($url, PHP_URL_SCHEME);
+    return in_array(strtolower((string) $scheme), ['http', 'https'], TRUE) ? $url : '';
   }
 
 }

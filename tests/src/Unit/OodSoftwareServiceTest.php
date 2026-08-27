@@ -75,4 +75,38 @@ class OodSoftwareServiceTest extends UnitTestCase {
     $this->assertSame(['A', 'B', 'C'], array_column($out, 'name'));
   }
 
+  /**
+   * Tests that an unmatched entry's editor-typed web_page is scheme-checked.
+   *
+   * The field_rp_ood_software widget is a hand-edited JSON textarea, so an
+   * entry that finds no SDS match keeps whatever the editor typed -- and the
+   * template renders that as a link href.
+   */
+  public function testEnrichDropsNonHttpUrlOnUnmatchedEntry(): void {
+    $sds = $this->prophesize(SdsEnrichmentService::class);
+    $sds->findInSds('Evilapp', [])->willReturn(NULL);
+    $svc = $this->makeService($sds->reveal());
+    $out = $svc->enrichEntries([
+      [
+        'name' => 'Evilapp',
+        'web_page' => 'javascript:alert(1)',
+        'documentation' => 'data:text/html,<script>alert(1)</script>',
+      ],
+    ], []);
+    $this->assertSame('', $out[0]['web_page']);
+    $this->assertSame('', $out[0]['documentation']);
+    $this->assertSame('Evilapp', $out[0]['name']);
+  }
+
+  /**
+   * Tests that a legitimate http(s) web_page survives enrichment untouched.
+   */
+  public function testEnrichKeepsHttpUrlOnUnmatchedEntry(): void {
+    $sds = $this->prophesize(SdsEnrichmentService::class);
+    $sds->findInSds('Goodapp', [])->willReturn(NULL);
+    $svc = $this->makeService($sds->reveal());
+    $out = $svc->enrichEntries([['name' => 'Goodapp', 'web_page' => 'https://example.org/app']], []);
+    $this->assertSame('https://example.org/app', $out[0]['web_page']);
+  }
+
 }
