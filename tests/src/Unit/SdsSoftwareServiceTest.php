@@ -10,7 +10,7 @@ use Drupal\operations_cider\Service\SdsSoftwareService;
 use Drupal\Tests\UnitTestCase;
 
 /**
- * Tests SdsSoftwareService::buildPayload() field mapping, order and capping.
+ * Tests SdsSoftwareService::buildPayload() field mapping and ordering.
  *
  * Like OodSoftwareServiceTest, this stays on the pure method; the node loop in
  * updateAll() is covered by the manual pass rather than mocked entity storage.
@@ -93,25 +93,15 @@ class SdsSoftwareServiceTest extends UnitTestCase {
   }
 
   /**
-   * Tests that items are capped while total reports the pre-cap count.
+   * Tests that the full catalog is stored, with no entry cap.
    */
-  public function testCapsItemsAndReportsPreCapTotal(): void {
+  public function testStoresFullCatalog(): void {
     $payload = $this->makeService()->buildPayload($this->catalog(1104));
 
     $this->assertSame(1104, $payload['total']);
-    $this->assertCount(SdsSoftwareService::ITEM_CAP, $payload['items']);
+    $this->assertCount(1104, $payload['items']);
     $this->assertSame('App1', $payload['items'][0]['name']);
-    $this->assertSame('App200', $payload['items'][SdsSoftwareService::ITEM_CAP - 1]['name']);
-  }
-
-  /**
-   * Tests that a catalog at the cap is not reported as truncated.
-   */
-  public function testCatalogExactlyAtCapIsNotTruncated(): void {
-    $payload = $this->makeService()->buildPayload($this->catalog(SdsSoftwareService::ITEM_CAP));
-
-    $this->assertSame(SdsSoftwareService::ITEM_CAP, $payload['total']);
-    $this->assertCount(SdsSoftwareService::ITEM_CAP, $payload['items']);
+    $this->assertSame('App1104', $payload['items'][1103]['name']);
   }
 
   /**

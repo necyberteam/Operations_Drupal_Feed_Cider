@@ -14,22 +14,18 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
  * this service stores the SDS-reported catalog instead. XDMoD always wins where
  * both exist — it carries usage ranking, which SDS does not.
  *
+ * The full SDS catalog is stored — no entry cap. The worst case today is ACES
+ * at 1104 entries (~425KB of trimmed JSON); everything else is under 220.
+ *
  * Stored shape on field_rp_sds_software:
  * @code
  * {"total": 1104, "items": [{"name": …, "description": …, …}]}
  * @endcode
- * The separate "total" lets the template distinguish a list truncated at the
- * cap from one that happens to have exactly ITEM_CAP entries.
+ * "total" always equals the item count now, but it is kept so the field
+ * config, the preprocess and the template need not change if a cap ever
+ * returns.
  */
 class SdsSoftwareService {
-
-  /**
-   * Maximum number of software entries stored per resource.
-   *
-   * ACES reports 1104 entries (~434KB of trimmed JSON); the cap keeps the
-   * worst-case payload around 80KB.
-   */
-  const ITEM_CAP = 200;
 
   /**
    * The entity type manager.
@@ -77,14 +73,11 @@ class SdsSoftwareService {
    *   keyed by lowercase software name.
    *
    * @return array{total: int, items: array<int, array<string, string>>}
-   *   The stored payload; total is the pre-cap catalog count.
+   *   The stored payload; total is the catalog count.
    */
   public function buildPayload(array $catalog): array {
     $rows = [];
     foreach ($catalog as $item) {
-      if (count($rows) >= self::ITEM_CAP) {
-        break;
-      }
       $rows[] = ['name' => $item['software_name'] ?? ''] + $this->sds->mapSdsFields($item);
     }
     return [
