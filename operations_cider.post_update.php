@@ -127,8 +127,8 @@ function operations_cider_post_update_d2719_02_regenerate_short_aliases(): strin
 /**
  * Populate field_rp_sds_software so the feature is live at deploy time.
  *
- * The weekly sweep in operations_cider_cron() only runs at 2 AM, so without
- * this backfill the SDS software tables stay empty for up to a day after
+ * The operations_cider_sds_software cron job only sweeps weekly, so without
+ * this backfill the SDS software tables stay empty for up to a week after
  * deploy.
  */
 function operations_cider_post_update_d2819_01_backfill_sds_software(): string {
@@ -136,8 +136,8 @@ function operations_cider_post_update_d2819_01_backfill_sds_software(): string {
     \Drupal::service('operations_cider.sds_software')->updateAll();
   }
   catch (\Throwable $e) {
-    // Leave the state key unset so the next 2 AM cron retries rather than
-    // deferring the backfill a full week.
+    // Leave the state key unset so the next scheduled run of the
+    // operations_cider_sds_software job picks the backfill back up.
     return 'SDS software backfill failed: ' . $e->getMessage() . ' — cron will retry.';
   }
 
@@ -162,7 +162,7 @@ function operations_cider_post_update_d2819_02_uncap_sds_software(): string {
     \Drupal::service('operations_cider.sds_software')->updateAll();
   }
   catch (\Throwable $e) {
-    // Leave the state key unset so the next 2 AM cron retries.
+    // Leave the state key unset so the next scheduled cron job retries.
     return 'SDS software re-fetch failed: ' . $e->getMessage() . ' — cron will retry.';
   }
 
