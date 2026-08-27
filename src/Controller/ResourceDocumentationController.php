@@ -72,8 +72,7 @@ class ResourceDocumentationController extends ControllerBase {
       ->getQuery()
       ->condition('type', 'access_active_resources_from_cid')
       ->condition('status', 1)
-      ->accessCheck(TRUE)
-      ->sort('title');
+      ->accessCheck(TRUE);
     if ($documented_only) {
       // Match the in-PHP isEmpty() check used to populate has_documentation:
       // the field must be present and the value column must be non-empty.
@@ -89,7 +88,7 @@ class ResourceDocumentationController extends ControllerBase {
     foreach ($nodes as $node) {
       $resources[] = [
         'nid' => (int) $node->id(),
-        'title' => $node->getTitle(),
+        'title' => operations_cider_resource_display_name($node),
         'short_name' => $this->stringValue($node, 'field_cider_short_name'),
         'resource_id' => $node->get('field_cider_resource_id')->value,
         'global_resource_id' => $node->get('field_access_global_resource_id')->value,
@@ -101,6 +100,11 @@ class ResourceDocumentationController extends ControllerBase {
         'last_modified' => date('c', $node->getChangedTime()),
       ];
     }
+
+    // Sort by the display title actually returned (field_rp_display_name ->
+    // field_cider_short_name -> raw title), not the DB title used to build
+    // the query above — an entity query can't express that fallback in SQL.
+    usort($resources, fn(array $a, array $b) => strcasecmp($a['title'], $b['title']));
 
     $response = new CacheableJsonResponse([
       'count' => count($resources),
@@ -144,7 +148,7 @@ class ResourceDocumentationController extends ControllerBase {
 
     $data = [
       'nid' => (int) $node->id(),
-      'title' => $node->getTitle(),
+      'title' => operations_cider_resource_display_name($node),
       'short_name' => $this->stringValue($node, 'field_cider_short_name'),
       'resource_id' => $node->get('field_cider_resource_id')->value,
       'global_resource_id' => $node->get('field_access_global_resource_id')->value,
@@ -325,7 +329,7 @@ class ResourceDocumentationController extends ControllerBase {
         }
         $variants[] = [
           'nid' => (int) $variant->id(),
-          'title' => $variant->getTitle(),
+          'title' => operations_cider_resource_display_name($variant),
           'short_name' => $this->stringValue($variant, 'field_cider_short_name'),
           'resource_id' => $variant->get('field_cider_resource_id')->value,
           'global_resource_id' => $variant->get('field_access_global_resource_id')->value,
