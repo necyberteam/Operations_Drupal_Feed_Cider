@@ -25,37 +25,6 @@ function operations_cider_node_insert(EntityInterface $entity) {
 }
 
 /**
- * Implements hook_node_load().
- *
- * For RP documentation nodes (access_active_resources_from_cid), use the
- * field_cider_short_name as the display title. The CIDER feed populates
- * the long descriptive title (e.g., "NCSA Delta CPU (Delta CPU)") into
- * node->title; the short name (e.g., "Delta CPU") is more usable in:
- *   - the page H1
- *   - the browser <title>
- *   - breadcrumbs
- *   - entity-reference autocompletes / admin lists
- *
- * setTitle() mutates the loaded entity instance; it does not persist.
- * The CiDeR sync round-trips through Feeds which re-reads the title from
- * the feed source, so this override does not leak into the DB.
- */
-function operations_cider_node_load(array $entities) {
-  foreach ($entities as $node) {
-    if ($node->bundle() !== 'access_active_resources_from_cid') {
-      continue;
-    }
-    if (!$node->hasField('field_cider_short_name')) {
-      continue;
-    }
-    $short = $node->get('field_cider_short_name')->value;
-    if ($short !== NULL && trim((string) $short) !== '') {
-      $node->setTitle($short);
-    }
-  }
-}
-
-/**
  * Implements hook_form_FORM_ID_alter() for node_access_active_resources_from_cid_edit_form.
  *
  * Makes CiDeR-synced fields readonly so editors can see the data but know to
@@ -63,6 +32,7 @@ function operations_cider_node_load(array $entities) {
  */
 function operations_cider_form_node_access_active_resources_from_cid_edit_form_alter(&$form, FormStateInterface $form_state, $form_id) {
   $cider_fields = [
+    'title',
     'body',
     'field_cider_resource_id',
     'field_access_global_resource_id',
@@ -99,6 +69,83 @@ function operations_cider_form_node_access_active_resources_from_cid_edit_form_a
 }
 
 /**
+ * Resolves the display name for a CiDeR resource node.
+ *
+ * Precedence: editor override (field_rp_display_name), then the CiDeR short
+ * name (field_cider_short_name), then the CiDeR descriptive title. A blank
+ * override falls through, so most nodes resolve to the short name.
+ */
+function operations_cider_resource_display_name(\Drupal\node\NodeInterface $node): string {
+  if ($node->hasField('field_rp_display_name')) {
+    $display = trim((string) $node->get('field_rp_display_name')->value);
+    if ($display !== '') {
+      return $display;
+    }
+  }
+  if ($node->hasField('field_cider_short_name')) {
+    $short = trim((string) $node->get('field_cider_short_name')->value);
+    if ($short !== '') {
+      return $short;
+    }
+  }
+  return (string) $node->getTitle();
+}
+
+/**
+ * Implements hook_preprocess_html().
+ *
+ * Mirror the resource H1: use the resolved display name in the browser
+ * <title> for resource pages, not the raw node title. Metatag's own
+ * hook_preprocess_html() (metatag_preprocess_html()) overwrites
+ * $variables['head_title'] wholesale when a title metatag is configured for
+ * the route, so this must run after it. Module registration order in
+ * core.extension.yml currently happens to put operations_cider after
+ * metatag, but that's incidental and could silently flip on a future
+ * module reinstall/reorder. operations_cider_module_implements_alter()
+ * below pins this hook to run last explicitly, so the <title> override
+ * doesn't depend on extension.yml ordering.
+ */
+function operations_cider_preprocess_html(array &$variables) {
+  $node = \Drupal::routeMatch()->getParameter('node');
+  if ($node instanceof \Drupal\node\NodeInterface
+      && $node->bundle() === 'access_active_resources_from_cid'
+      && isset($variables['head_title']['title'])) {
+    $variables['head_title']['title'] = operations_cider_resource_display_name($node);
+  }
+}
+
+/**
+ * Implements hook_preprocess_node().
+ */
+function operations_cider_preprocess_node(array &$variables) {
+  $node = $variables['node'] ?? NULL;
+  if ($node instanceof \Drupal\node\NodeInterface
+      && $node->bundle() === 'access_active_resources_from_cid') {
+    $variables['resource_display_name'] = operations_cider_resource_display_name($node);
+  }
+}
+
+/**
+ * Implements hook_preprocess_page_title().
+ *
+ * Core's EntityViewController::buildTitle() does not set the node entity
+ * type's 'enable_page_title_template' property, so for full node view pages
+ * it takes the legacy fallback: it renders the 'title' field formatter
+ * (the raw title) and uses that rendered markup as #title, bypassing
+ * $entity->label() entirely. The bundle class's label() override therefore
+ * never reaches the H1 through core's own title-resolution path. Resolve
+ * the display name here so the H1 shows the editor override / short name
+ * rather than the raw title.
+ */
+function operations_cider_preprocess_page_title(array &$variables) {
+  $node = \Drupal::routeMatch()->getParameter('node');
+  if ($node instanceof \Drupal\node\NodeInterface
+      && $node->bundle() === 'access_active_resources_from_cid') {
+    $variables['title'] = operations_cider_resource_display_name($node);
+  }
+}
+
+/**
  * Implements hook_entity_create().
  */
 function operations_cider_entity_presave(EntityInterface $entity) {
@@ -115,5 +162,33 @@ function operations_cider_entity_presave(EntityInterface $entity) {
         }
       }
     }
+  }
+}
+
+/**
+ * Implements hook_entity_bundle_info_alter().
+ *
+ * Registers the bundle class that overrides label() so the resource display
+ * name resolves at the source for every consumer that calls label().
+ */
+function operations_cider_entity_bundle_info_alter(array &$bundles): void {
+  if (isset($bundles['node']['access_active_resources_from_cid'])) {
+    $bundles['node']['access_active_resources_from_cid']['class'] =
+      \Drupal\operations_cider\Entity\CiderResourceNode::class;
+  }
+}
+
+/**
+ * Implements hook_module_implements_alter().
+ *
+ * Ensure operations_cider's preprocess_html runs last so the resource
+ * <title> override is not clobbered by another module (e.g. metatag)
+ * writing head_title. Removes reliance on core.extension.yml ordering.
+ */
+function operations_cider_module_implements_alter(&$implementations, $hook) {
+  if ($hook === 'preprocess_html' && isset($implementations['operations_cider'])) {
+    $group = $implementations['operations_cider'];
+    unset($implementations['operations_cider']);
+    $implementations['operations_cider'] = $group;
   }
 }
