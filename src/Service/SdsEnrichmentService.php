@@ -164,6 +164,73 @@ class SdsEnrichmentService {
   }
 
   /**
+   * Fetch the SDS catalog for a resource, distinguishing failure from empty.
+   *
+   * The array-returning fetchCatalogByResource() gives back [] both when the
+   * request fails and when SDS genuinely has no software for the RP. Callers
+   * that cache the result need to tell those apart, or one transient outage
+   * wipes every cached list.
+   *
+   * @param string $global_resource_id
+   *   The CiDeR global resource ID (e.g., "anvil.purdue.access-ci.org").
+   *
+   * @return array<string, array<string, mixed>>|null
+   *   SDS catalog keyed by lowercase software_name (possibly empty) on a
+   *   successful response, or NULL when the request could not be completed.
+   */
+  public function fetchCatalogByResourceOrNull(string $global_resource_id): ?array {
+    $api_key = $this->apiKey();
+    if (!$api_key) {
+      $this->logger->error('SDS API key not configured (key: sds_api).');
+      return NULL;
+    }
+    try {
+      $response = $this->httpClient->request('POST', self::SDS_API_BASE, [
+        'headers' => [
+          'Accept' => 'application/json',
+          'Content-Type' => 'application/json',
+          'x-api-key' => $api_key,
+        ],
+        'json' => [
+          'rps' => [$global_resource_id],
+        ],
+        'timeout' => 15,
+      ]);
+      $body = json_decode((string) $response->getBody(), TRUE);
+    }
+    catch (GuzzleException $e) {
+      // 404 is a definitive "SDS has nothing for this resource", not a failure.
+      if ($e->getCode() === 404) {
+        return [];
+      }
+      $this->logger->warning(
+        'SDS API request failed for @resource: @message',
+        ['@resource' => $global_resource_id, '@message' => $e->getMessage()]
+      );
+      return NULL;
+    }
+
+    if (!is_array($body)) {
+      $this->logger->warning(
+        'SDS API returned an unparseable body for @resource.',
+        ['@resource' => $global_resource_id]
+      );
+      return NULL;
+    }
+
+    // Index by lowercase name for case-insensitive lookup. Keying this way
+    // preserves insertion order but collapses duplicate names.
+    $catalog = [];
+    foreach ($body['data'] ?? [] as $item) {
+      $name = strtolower($item['software_name'] ?? '');
+      if ($name) {
+        $catalog[$name] = $item;
+      }
+    }
+    return $catalog;
+  }
+
+  /**
    * Look up a software name in the SDS catalog.
    *
    * Tries exact match, then known aliases, then hyphen/underscore-normalized
@@ -218,9 +285,39 @@ class SdsEnrichmentService {
     return [
       'description' => ($sds_item['ai_description'] ?? '') ?: ($sds_item['software_description'] ?? '') ?: '',
       'research_field' => $sds_item['ai_research_field'] ?? '',
-      'web_page' => $sds_item['software_web_page'] ?? '',
-      'documentation' => $sds_item['software_documentation'] ?? '',
+      'web_page' => self::safeUrl($sds_item['software_web_page'] ?? ''),
+      'documentation' => self::safeUrl($sds_item['software_documentation'] ?? ''),
     ];
+  }
+
+  /**
+   * Keep a feed-supplied URL only when it carries an http(s) scheme.
+   *
+   * These values are stored and later emitted as link hrefs and over the
+   * resources API, so anything that is not plainly an absolute web address --
+   * javascript:, data:, a protocol-relative //host, a relative path -- is
+   * dropped rather than passed through. Callers treat an empty string as
+   * "no link".
+   *
+   * @param mixed $url
+   *   The raw value from the SDS feed, or from editor-authored JSON.
+   *
+   * @return string
+   *   The URL, or an empty string if it is missing or not http(s).
+   */
+  public static function safeUrl($url): string {
+    if (!is_string($url)) {
+      return '';
+    }
+    $url = trim($url);
+    if ($url === '') {
+      return '';
+    }
+    // parse_url() returns NULL for a scheme obfuscated with embedded control
+    // characters, and for protocol-relative and relative URLs, so both the
+    // dangerous and the merely unusable cases fall through to ''.
+    $scheme = parse_url($url, PHP_URL_SCHEME);
+    return in_array(strtolower((string) $scheme), ['http', 'https'], TRUE) ? $url : '';
   }
 
 }

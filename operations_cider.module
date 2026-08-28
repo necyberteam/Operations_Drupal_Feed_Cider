@@ -48,6 +48,7 @@ function operations_cider_form_node_access_active_resources_from_cid_edit_form_a
     'field_cider_detail_view_url',
     'field_cider_raw_data_url',
     'field_rp_top_software',
+    'field_rp_sds_software',
     'field_rp_queue_metrics',
   ];
 
@@ -65,59 +66,6 @@ function operations_cider_form_node_access_active_resources_from_cid_edit_form_a
     '#markup' => '<div class="messages messages--warning"><strong>CiDeR-synced fields</strong> — The fields below are automatically synced from CiDeR. To change this data, update it in CiDeR and it will sync here on the next import.</div>',
     '#weight' => 49,
   ];
-}
-
-/**
- * Implements hook_cron().
- *
- * Runs daily at 2 AM to cache dynamic resource data from external APIs.
- */
-function operations_cider_cron() {
-  $hour = (int) date('H');
-
-  // Run at 2 AM. The state-based interval checks below prevent duplicate runs.
-  if ($hour !== 2) {
-    return;
-  }
-
-  $state = \Drupal::state();
-
-  // Queue metrics from XDMoD — daily.
-  $last_metrics = $state->get('operations_cider.queue_metrics_last_run', 0);
-  if (\Drupal::time()->getRequestTime() - $last_metrics > 86400) {
-    \Drupal::service('operations_cider.queue_metrics')->updateAll();
-    $state->set(
-      'operations_cider.queue_metrics_last_run',
-      \Drupal::time()->getRequestTime()
-    );
-  }
-
-  // Top software from XDMoD + SDS enrichment — weekly.
-  $last_software = $state->get('operations_cider.top_software_last_run', 0);
-  if (\Drupal::time()->getRequestTime() - $last_software > 604800) {
-    \Drupal::service('operations_cider.top_software')->updateAll();
-    $state->set(
-      'operations_cider.top_software_last_run',
-      \Drupal::time()->getRequestTime()
-    );
-  }
-
-  // OOD software enrichment — weekly.
-  $last_ood = $state->get('operations_cider.ood_software_last_run', 0);
-  if (\Drupal::time()->getRequestTime() - $last_ood > 604800) {
-    \Drupal::service('operations_cider.ood_software')->updateAll();
-    $state->set('operations_cider.ood_software_last_run', \Drupal::time()->getRequestTime());
-  }
-
-  // SDS availability check — weekly.
-  $last_sds = $state->get('operations_cider.sds_availability_last_run', 0);
-  if (\Drupal::time()->getRequestTime() - $last_sds > 604800) {
-    \Drupal::service('operations_cider.sds_availability')->updateAll();
-    $state->set(
-      'operations_cider.sds_availability_last_run',
-      \Drupal::time()->getRequestTime()
-    );
-  }
 }
 
 /**

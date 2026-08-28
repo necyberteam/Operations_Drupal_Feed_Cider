@@ -47,6 +47,11 @@ class OodSoftwareService {
 
   /**
    * Merge SDS enrichment into each entry by name; unmatched entries unchanged.
+   *
+   * URLs are scheme-checked on every entry, not just the enriched ones: this
+   * field is a hand-edited JSON textarea on the node form, so an entry whose
+   * name finds no SDS match keeps whatever web_page the editor typed, and
+   * that value is rendered as a link href.
    */
   public function enrichEntries(array $entries, array $catalog): array {
     foreach ($entries as &$entry) {
@@ -56,6 +61,11 @@ class OodSoftwareService {
       $hit = $this->sds->findInSds($entry['name'], $catalog);
       if ($hit) {
         $entry = array_merge($entry, $this->sds->mapSdsFields($hit));
+      }
+      foreach (['web_page', 'documentation'] as $url_key) {
+        if (isset($entry[$url_key])) {
+          $entry[$url_key] = SdsEnrichmentService::safeUrl($entry[$url_key]);
+        }
       }
     }
     unset($entry);
