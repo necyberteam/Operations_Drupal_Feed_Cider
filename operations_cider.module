@@ -66,6 +66,227 @@ function operations_cider_form_node_access_active_resources_from_cid_edit_form_a
     '#markup' => '<div class="messages messages--warning"><strong>CiDeR-synced fields</strong> — The fields below are automatically synced from CiDeR. To change this data, update it in CiDeR and it will sync here on the next import.</div>',
     '#weight' => 49,
   ];
+
+  // Give inheritable boolean fields a three-state control on the Resource form.
+  //
+  // A plain checkbox can only show on/off, but these fields have THREE states:
+  // inherit the parent Group's value (field empty), explicit Yes, explicit No.
+  // Rendered as a checkbox, an inheriting Resource shows an unchecked box even
+  // when the Group value is TRUE — and saving that form silently writes an
+  // explicit FALSE, overriding the inheritance. Replace the checkbox with a
+  // select whose "inherit" option is empty (so applyInheritance still fills
+  // it) and whose Yes/No options store an explicit override. When the Resource
+  // has no parent Group there is nothing to inherit, so only Yes/No are shown.
+  operations_cider_apply_inheritable_boolean_widgets($form, $form_state);
+}
+
+/**
+ * Swaps inheritable boolean checkboxes for inherit/Yes/No selects.
+ *
+ * Applies to every boolean field in
+ * ResourceGroupInheritanceService::INHERITABLE_FIELDS that appears on the form,
+ * so any boolean added to the inherit list gets the control automatically.
+ *
+ * Scope note: this runs from the EDIT-form alter only. The ADD form keeps the
+ * plain checkbox — a brand-new node has no parent group yet, so there is
+ * nothing to inherit and no three-state to show. The submit handler is spliced
+ * onto every submit-type action, so the Preview button also carries it and a
+ * previewed node reflects the chosen inherit/Yes/No, which is what we want.
+ */
+function operations_cider_apply_inheritable_boolean_widgets(array &$form, FormStateInterface $form_state): void {
+  $node = $form_state->getFormObject()->getEntity();
+  /** @var \Drupal\operations_cider\Service\ResourceGroupInheritanceService $inheritance */
+  $inheritance = \Drupal::service('operations_cider.resource_group_inheritance');
+  $group = $inheritance->findParentGroup($node);
+
+  $swapped = [];
+  foreach (\Drupal\operations_cider\Service\ResourceGroupInheritanceService::INHERITABLE_FIELDS as $field_name) {
+    if (!isset($form[$field_name]) || !$node->hasField($field_name)) {
+      continue;
+    }
+    if ($node->get($field_name)->getFieldDefinition()->getType() !== 'boolean') {
+      continue;
+    }
+
+    // Current explicit state of the Resource's own field: NULL when empty
+    // (inheriting), '1' or '0' when the Resource set its own value.
+    $current = $node->get($field_name)->isEmpty() ? '' : (string) (int) $node->get($field_name)->value;
+
+    $options = [];
+    if ($group && $group->hasField($field_name) && !$group->get($field_name)->isEmpty()) {
+      // Resolve what "inherit" means right now so the editor can see it.
+      $group_label = ((int) $group->get($field_name)->value) === 1 ? t('Yes') : t('No');
+      $options[''] = t('Inherit from resource group (currently: @val)', ['@val' => $group_label]);
+    }
+    elseif ($group) {
+      // In a group, but the group hasn't set this field: inheriting resolves to
+      // the field's own empty/off state, so say so rather than promise a value.
+      $options[''] = t('Inherit from resource group (no default set — shows No)');
+    }
+    // With no group there is nothing to inherit; the empty option is dropped and
+    // an empty field simply reads as No.
+    $options['1'] = t('Yes');
+    $options['0'] = t('No');
+
+    // If the field is empty but "inherit" is not an available option (no group),
+    // fall back to showing No so the select has a valid selected value.
+    // Known, accepted behaviour: saving such a resource unchanged then writes an
+    // explicit 0 where the field was previously empty. It renders identically
+    // (no group means empty already reads as No) and matches the old checkbox
+    // widget, so it is not a regression; the only effect is that if the resource
+    // later joins a group it would need this field cleared to inherit. Not worth
+    // special-casing — re-selecting is trivial and the alternative reintroduces
+    // a meaningless inherit option on group-less resources.
+    $default = ($current === '' && !isset($options['']) ) ? '0' : $current;
+
+    // Prefer the widget's rendered label, but fall back to the field's
+    // configured label (never the raw machine name) so the select always shows
+    // a human title regardless of the boolean widget's internal structure.
+    $title = $form[$field_name]['widget']['#title']
+      ?? $form[$field_name]['widget'][0]['value']['#title']
+      ?? $node->get($field_name)->getFieldDefinition()->getLabel();
+    $description = $form[$field_name]['widget'][0]['value']['#description']
+      ?? ($form[$field_name]['#description'] ?? '');
+
+    $weight = $form[$field_name]['#weight'] ?? 0;
+    // Replace the whole field element with a single select. Storing the value
+    // back onto the entity happens in the submit handler below, keyed by the
+    // field name, so the boolean widget's own extraction is bypassed.
+    $form[$field_name] = [
+      '#type' => 'select',
+      '#title' => $title,
+      '#description' => $description,
+      '#options' => $options,
+      '#default_value' => $default,
+      '#weight' => $weight,
+      // Marker so the submit handler knows which fields it owns.
+      '#operations_cider_inheritable_boolean' => TRUE,
+      '#parents' => ['operations_cider_bool', $field_name],
+    ];
+    $swapped[] = $field_name;
+  }
+
+  // Remove the swapped fields from the form display. The field's widget would
+  // otherwise still run extractFormValues()/flagErrors() against the form
+  // subtree we just replaced with a select — and flagErrors() dereferences the
+  // widget's stored array_parents, which now point at a deleted subtree, so any
+  // entity-level violation on the field would fatal instead of showing a field
+  // error. The select owns the value (via the submit handler), so the field's
+  // own widget has no work to do; dropping the component makes the swap safe
+  // even if these booleans ever gain a validation constraint.
+  if ($swapped) {
+    $display = $form_state->getFormObject()->getFormDisplay($form_state);
+    foreach ($swapped as $field_name) {
+      $display->removeComponent($field_name);
+    }
+  }
+
+  // Mirror each select's chosen value back to the field's normal form-state
+  // path during validation, so other code that reads the boolean the standard
+  // way (e.g. access_misc's "account setup URL required when account required"
+  // validator) keeps working. "Inherit" resolves to the group's effective
+  // value so the validation matches what the page will actually render.
+  array_unshift($form['#validate'], 'operations_cider_inheritable_boolean_validate');
+
+  // Register the submit handler to run AFTER EntityForm::submitForm (which
+  // rebuilds $this->entity from the submitted form values) but before ::save.
+  // Appending, not unshifting, is deliberate: submitForm reassigns the form
+  // object's entity to a freshly rebuilt clone, so a handler that runs before
+  // it would mutate the old, discarded entity. Running after it — and fetching
+  // the entity via getFormObject()->getEntity() — writes onto the exact object
+  // ::save persists. The select's own values sit under the 'operations_cider_bool'
+  // parent, so the core boolean widget never reads them and cannot fight this.
+  foreach (array_keys($form['actions'] ?? []) as $action) {
+    if (isset($form['actions'][$action]['#type']) && $form['actions'][$action]['#type'] === 'submit') {
+      $submit = $form['actions'][$action]['#submit'] ?? [];
+      // Insert immediately after ::submitForm; fall back to appending.
+      $pos = array_search('::submitForm', $submit, TRUE);
+      if ($pos === FALSE) {
+        $submit[] = 'operations_cider_inheritable_boolean_submit';
+      }
+      else {
+        array_splice($submit, $pos + 1, 0, 'operations_cider_inheritable_boolean_submit');
+      }
+      $form['actions'][$action]['#submit'] = $submit;
+    }
+  }
+}
+
+/**
+ * Validate handler: mirror select choices to the fields' normal form-state path.
+ *
+ * The select stores its value under the 'operations_cider_bool' parent, so a
+ * validator reading $form_state->getValue(['field_rp_x', 'value']) would see
+ * nothing. Copy the effective boolean back to that path — for an explicit
+ * Yes/No the chosen value, for "inherit" the parent group's value — so existing
+ * per-field validators keep matching what the page will render. Runs before
+ * those validators (unshifted onto #validate).
+ */
+function operations_cider_inheritable_boolean_validate(array &$form, FormStateInterface $form_state): void {
+  $node = $form_state->getFormObject()->getEntity();
+  /** @var \Drupal\operations_cider\Service\ResourceGroupInheritanceService $inheritance */
+  $inheritance = \Drupal::service('operations_cider.resource_group_inheritance');
+  $group = $inheritance->findParentGroup($node);
+  $values = $form_state->getValue('operations_cider_bool') ?? [];
+  foreach ($values as $field_name => $selected) {
+    if ($selected === '') {
+      // Inherit: the effective value is the group's, or empty when no group.
+      $effective = ($group && $group->hasField($field_name) && !$group->get($field_name)->isEmpty())
+        ? (int) $group->get($field_name)->value
+        : NULL;
+    }
+    else {
+      $effective = (int) $selected;
+    }
+    $form_state->setValue([$field_name, 'value'], $effective);
+  }
+
+  // A boolean's paired requirement can reference another INHERITABLE field: the
+  // access_misc rule "account setup URL required when account required" reads
+  // field_rp_account_setup_url, which is itself inheritable. If the Resource
+  // left that URL empty it inherits the group's at render time, so the rule
+  // must see the effective (inherited) URL — otherwise a Resource that inherits
+  // both the boolean and the URL gets a false "URL required" error and cannot
+  // save. Mirror the effective link value to the path that validator reads.
+  // Scoped to setup_url deliberately: mirroring every inheritable link/text
+  // field into form state risks interfering with core's own field validation.
+  if ($group) {
+    $link_pairs = ['field_rp_account_setup_url'];
+    foreach ($link_pairs as $link_field) {
+      if (!$node->hasField($link_field) || !$node->get($link_field)->isEmpty()) {
+        // The Resource set its own value; nothing to inherit, leave it alone.
+        continue;
+      }
+      if ($group->hasField($link_field) && !$group->get($link_field)->isEmpty()) {
+        $form_state->setValue([$link_field, 0, 'uri'], $group->get($link_field)->uri);
+      }
+    }
+  }
+}
+
+/**
+ * Submit handler: writes inherit/Yes/No selections back to the boolean fields.
+ *
+ * Runs after EntityForm::submitForm so getFormObject()->getEntity() returns the
+ * rebuilt entity that ::save persists. '' (inherit) clears the field so
+ * applyInheritance fills it from the group at render time; '1'/'0' store an
+ * explicit override.
+ */
+function operations_cider_inheritable_boolean_submit(array &$form, FormStateInterface $form_state): void {
+  $node = $form_state->getFormObject()->getEntity();
+  $values = $form_state->getValue('operations_cider_bool') ?? [];
+  foreach ($values as $field_name => $selected) {
+    if (!$node->hasField($field_name)) {
+      continue;
+    }
+    if ($selected === '') {
+      // Inherit: empty the field so applyInheritance fills it from the group.
+      $node->set($field_name, NULL);
+    }
+    else {
+      $node->set($field_name, (int) $selected);
+    }
+  }
 }
 
 /**
