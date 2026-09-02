@@ -60,11 +60,32 @@ function operations_cider_form_node_access_active_resources_from_cid_edit_form_a
     }
   }
 
-  // Add a note above the CiDeR section.
+  $node = $form_state->getFormObject()->getEntity();
+
+  // The display-name field's help text points editors at the CiDeR Short Name
+  // it falls back to, but that field lives disabled inside the Auto-synced
+  // Data group at the bottom of the form — show the actual value here so the
+  // promise "shown alongside this field" is true.
+  if (isset($form['field_rp_display_name']['widget'][0]['value']) && $node->hasField('field_cider_short_name')) {
+    $short = trim((string) $node->get('field_cider_short_name')->value);
+    if ($short !== '') {
+      $el = &$form['field_rp_display_name']['widget'][0]['value'];
+      $existing = (string) ($el['#description'] ?? '');
+      $el['#description'] = trim($existing . ' ' . t('Current CiDeR Short Name: %name.', ['%name' => $short]));
+      unset($el);
+    }
+  }
+
+  // Explain the read-only fields at the top of the Auto-synced Data group.
+  // A container (not bare markup) so core's processGroup honours #group and
+  // places it inside the details element with the fields it describes.
   $form['cider_section_notice'] = [
-    '#type' => 'markup',
-    '#markup' => '<div class="messages messages--warning"><strong>CiDeR-synced fields</strong> — The fields below are automatically synced from CiDeR. To change this data, update it in CiDeR and it will sync here on the next import.</div>',
-    '#weight' => 49,
+    '#type' => 'container',
+    '#group' => 'group_cider_synced_data',
+    '#weight' => -50,
+    'notice' => [
+      '#markup' => '<div class="messages messages--warning"><strong>CiDeR-synced fields</strong> — The fields in this section are automatically synced from CiDeR. To change this data, update it in CiDeR and it will sync here on the next import.</div>',
+    ],
   ];
 
   // Give inheritable boolean fields a three-state control on the Resource form.
