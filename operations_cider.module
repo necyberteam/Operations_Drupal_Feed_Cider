@@ -316,27 +316,13 @@ function operations_cider_inheritable_boolean_validate(array &$form, FormStateIn
     $form_state->setValue([$field_name, 'value'], $effective);
   }
 
-  // A boolean's paired requirement can reference another INHERITABLE field: the
-  // access_misc rule "account setup URL required when account required" reads
-  // field_rp_account_setup_url, which is itself inheritable. If the Resource
-  // left that URL empty it inherits the group's at render time, so the rule
-  // must see the effective (inherited) URL — otherwise a Resource that inherits
-  // both the boolean and the URL gets a false "URL required" error and cannot
-  // save. Mirror the effective link value to the path that validator reads.
-  // Scoped to setup_url deliberately: mirroring every inheritable link/text
-  // field into form state risks interfering with core's own field validation.
-  if ($group) {
-    $link_pairs = ['field_rp_account_setup_url'];
-    foreach ($link_pairs as $link_field) {
-      if (!$node->hasField($link_field) || !$node->get($link_field)->isEmpty()) {
-        // The Resource set its own value; nothing to inherit, leave it alone.
-        continue;
-      }
-      if ($group->hasField($link_field) && !$group->get($link_field)->isEmpty()) {
-        $form_state->setValue([$link_field, 0, 'uri'], $group->get($link_field)->uri);
-      }
-    }
-  }
+  // Deliberately NOT mirrored: field_rp_account_setup_url. Writing an
+  // inherited value to a field's own form-state path feeds the field widget's
+  // extractFormValues, which then PERSISTS the inherited value onto the
+  // Resource on save — silently converting inheritance into an explicit copy.
+  // (The booleans above survive that same extraction only because the
+  // post-submitForm handler rewrites them.) access_misc's setup-url validator
+  // resolves the group's effective URL itself instead.
 }
 
 /**
