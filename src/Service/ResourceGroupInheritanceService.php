@@ -36,6 +36,21 @@ class ResourceGroupInheritanceService {
     'field_rp_datasets',
     'field_rp_support_links',
     'field_rp_office_hours',
+    // "RP source documentation for X" per-section links. A Resource that
+    // leaves one empty inherits the Group's, so a provider can set each
+    // section's docs link once on the Group.
+    'field_rp_submitting_jobs',
+    'field_rp_queue_spec_link',
+    'field_rp_software_link',
+    'field_rp_freq_used_software_link',
+    'field_rp_storage_link',
+    'field_rp_file_system_link',
+    'field_rp_external_storage_link',
+    'field_rp_file_transfer_link',
+    'field_rp_ssh_login_link',
+    'field_rp_login_to_anvil_gpu_link',
+    'field_rp_datasets_link',
+    'field_rp_access_ood_login_link',
   ];
 
   /**
