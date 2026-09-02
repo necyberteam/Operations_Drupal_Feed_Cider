@@ -148,17 +148,20 @@ function operations_cider_apply_inheritable_boolean_widgets(array &$form, FormSt
     $description = $form[$field_name]['widget'][0]['value']['#description']
       ?? ($form[$field_name]['#description'] ?? '');
 
-    $weight = $form[$field_name]['#weight'] ?? 0;
-    // Replace the whole field element with a single select. Storing the value
-    // back onto the entity happens in the submit handler below, keyed by the
-    // field name, so the boolean widget's own extraction is bypassed.
-    $form[$field_name] = [
+    // Replace only the 'widget' child, keeping the field's outer container.
+    // The container is what field_group places inside its details group: core
+    // honours #group only for element types whose #process chain includes
+    // processGroup, which Container has and a bare select does not — a
+    // wholesale replacement made these selects fall out of the "Login" group
+    // and render loose at the bottom of the form. Storing the value back onto
+    // the entity happens in the submit handler below, keyed by the field name,
+    // so the boolean widget's own extraction is bypassed.
+    $form[$field_name]['widget'] = [
       '#type' => 'select',
       '#title' => $title,
       '#description' => $description,
       '#options' => $options,
       '#default_value' => $default,
-      '#weight' => $weight,
       // Marker so the submit handler knows which fields it owns.
       '#operations_cider_inheritable_boolean' => TRUE,
       '#parents' => ['operations_cider_bool', $field_name],
