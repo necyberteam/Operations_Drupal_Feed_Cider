@@ -102,6 +102,57 @@ function operations_cider_form_node_access_active_resources_from_cid_edit_form_a
 }
 
 /**
+ * Implements hook_system_breadcrumb_alter().
+ *
+ * Node edit/delete/revisions routes live at /node/{nid}/..., so the
+ * path-based breadcrumb degrades to "Node / Title / Edit". For RP resource
+ * and resource-group nodes, rebuild the trail from the node's CANONICAL
+ * route instead — reusing the same builder, so it matches the view page's
+ * Documentation / Resource Documentation trail — then append the node
+ * (linked) and the current task.
+ */
+function operations_cider_system_breadcrumb_alter(\Drupal\Core\Breadcrumb\Breadcrumb &$breadcrumb, \Drupal\Core\Routing\RouteMatchInterface $route_match, array $context) {
+  $tasks = [
+    'entity.node.edit_form' => t('Edit'),
+    'entity.node.delete_form' => t('Delete'),
+    'entity.node.version_history' => t('Revisions'),
+  ];
+  $route_name = $route_match->getRouteName();
+  if (!isset($tasks[$route_name])) {
+    return;
+  }
+  $node = $route_match->getParameter('node');
+  if (!$node instanceof \Drupal\node\NodeInterface
+    || !in_array($node->bundle(), ['access_active_resources_from_cid', 'resource_group'], TRUE)) {
+    return;
+  }
+
+  // Build the canonical page's breadcrumb (our own alter ignores that route,
+  // so this cannot recurse).
+  $canonical_route = \Drupal::service('router.route_provider')->getRouteByName('entity.node.canonical');
+  $canonical_match = new \Drupal\Core\Routing\RouteMatch('entity.node.canonical', $canonical_route, ['node' => $node], ['node' => $node->id()]);
+  $canonical = \Drupal::service('breadcrumb')->build($canonical_match);
+
+  $links = $canonical->getLinks();
+  // The canonical trail usually ends with the node itself, unlinked (it is the
+  // current page there). Here the node is NOT the current page: link it, or
+  // add it if the builder omitted it.
+  $last = end($links);
+  if ($last && $last->getText() == $node->label()) {
+    array_pop($links);
+  }
+  $links[] = \Drupal\Core\Link::fromTextAndUrl($node->label(), $node->toUrl());
+  $links[] = \Drupal\Core\Link::createFromRoute($tasks[$route_name], '<none>');
+
+  $rebuilt = new \Drupal\Core\Breadcrumb\Breadcrumb();
+  $rebuilt->setLinks($links);
+  $rebuilt->addCacheableDependency($canonical);
+  $rebuilt->addCacheableDependency($node);
+  $rebuilt->addCacheContexts(['route']);
+  $breadcrumb = $rebuilt;
+}
+
+/**
  * Swaps inheritable boolean checkboxes for inherit/Yes/No selects.
  *
  * Applies to every boolean field in
